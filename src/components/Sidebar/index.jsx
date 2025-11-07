@@ -58,7 +58,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
       {/* <!-- SIDEBAR HEADER --> */}
       <div className="flex items-center justify-between gap-2 px-8 py-5.5 lg:py-6.5">
         <NavLink to="/">
-          <div className='text-2xl text-white font-bold'>Reactwind</div>
+          <div className='text-2xl text-white font-bold'>Money Talks</div>
         </NavLink>
 
         <button
@@ -186,6 +186,64 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                 </NavLink>
               </li>
               {/* <!-- Menu Item Portfolio --> */}
+
+              {/* <!-- Menu Item Watchlist --> */}
+              <li>
+                <NavLink
+                  to="/watchlist"
+                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('watchlist') && 'bg-graydark dark:bg-meta-4'
+                    }`}
+                >
+                  <svg
+                    className="fill-current"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 18 18"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M9 0.984375L11.3175 6.885L17.625 7.35938L12.9562 11.3906L14.4187 17.5312L9 14.2969L3.58125 17.5312L5.04375 11.3906L0.375 7.35938L6.6825 6.885L9 0.984375Z"
+                      fill=""
+                    />
+                  </svg>
+                  Watchlist
+                </NavLink>
+              </li>
+              {/* <!-- Menu Item Watchlist --> */}
+
+              {/* <!-- Menu Item About --> */}
+              <li>
+                <NavLink
+                  to="/about"
+                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('about') && 'bg-graydark dark:bg-meta-4'
+                    }`}
+                >
+                  <svg
+                    className="fill-current"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 18 18"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M9 0.5625C4.25156 0.5625 0.5625 4.25156 0.5625 9C0.5625 13.7484 4.25156 17.4375 9 17.4375C13.7484 17.4375 17.4375 13.7484 17.4375 9C17.4375 4.25156 13.7484 0.5625 9 0.5625ZM9 15.75C5.17969 15.75 2.25 12.8203 2.25 9C2.25 5.17969 5.17969 2.25 9 2.25C12.8203 2.25 15.75 5.17969 15.75 9C15.75 12.8203 12.8203 15.75 9 15.75Z"
+                      fill=""
+                    />
+                    <path
+                      d="M9 7.875C8.58281 7.875 8.25 8.20781 8.25 8.625V13.125C8.25 13.5422 8.58281 13.875 9 13.875C9.41719 13.875 9.75 13.5422 9.75 13.125V8.625C9.75 8.20781 9.41719 7.875 9 7.875Z"
+                      fill=""
+                    />
+                    <path
+                      d="M9 6.75C9.62132 6.75 10.125 6.24632 10.125 5.625C10.125 5.00368 9.62132 4.5 9 4.5C8.37868 4.5 7.875 5.00368 7.875 5.625C7.875 6.24632 8.37868 6.75 9 6.75Z"
+                      fill=""
+                    />
+                  </svg>
+                  About
+                </NavLink>
+              </li>
+              {/* <!-- Menu Item About --> */}
 
               {/* <!-- Menu Item AI --> */}
               <li>

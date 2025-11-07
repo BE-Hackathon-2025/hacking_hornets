@@ -17,6 +17,8 @@ import Alerts from './pages/UiElements/Alerts';
 import Buttons from './pages/UiElements/Buttons';
 import AI from './pages/AI/AI';
 import Portfolio from './pages/Portfolio/Portfolio';
+import Watchlist from './pages/Watchlist/Watchlist';
+import About from './pages/About/About';
 import DefaultLayout from './layout/DefaultLayout';
 
 function App() {
@@ -40,7 +42,7 @@ function App() {
           path="/dashboard"
           element={
             <>
-              <PageTitle title="Dashboard | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Dashboard | Money Talks - AI-Powered Investment Portfolio" />
               <Dashboard />
             </>
           }
@@ -49,7 +51,7 @@ function App() {
           path="/calendar"
           element={
             <>
-              <PageTitle title="Calendar | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Calendar | Money Talks - AI-Powered Investment Portfolio" />
               <Calendar />
             </>
           }
@@ -58,7 +60,7 @@ function App() {
           path="/profile"
           element={
             <>
-              <PageTitle title="Profile | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Profile | Money Talks - AI-Powered Investment Portfolio" />
               <Profile />
             </>
           }
@@ -67,8 +69,26 @@ function App() {
           path="/portfolio"
           element={
             <>
-              <PageTitle title="Portfolio | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Portfolio | Money Talks - AI-Powered Investment Portfolio" />
               <Portfolio />
+            </>
+          }
+        />
+        <Route
+          path="/watchlist"
+          element={
+            <>
+              <PageTitle title="Watchlist | Money Talks - AI-Powered Investment Portfolio" />
+              <Watchlist />
+            </>
+          }
+        />
+        <Route
+          path="/about"
+          element={
+            <>
+              <PageTitle title="About | Money Talks - AI-Powered Investment Portfolio" />
+              <About />
             </>
           }
         />
@@ -76,7 +96,7 @@ function App() {
           path="/ai"
           element={
             <>
-              <PageTitle title="AI Assistant | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="AI Assistant | Money Talks - AI-Powered Investment Portfolio" />
               <AI />
             </>
           }
@@ -85,7 +105,7 @@ function App() {
           path="/forms/form-elements"
           element={
             <>
-              <PageTitle title="Form Elements | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Form Elements | Money Talks - AI-Powered Investment Portfolio" />
               <FormElements />
             </>
           }
@@ -94,7 +114,7 @@ function App() {
           path="/forms/form-layout"
           element={
             <>
-              <PageTitle title="Form Layout | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Form Layout | Money Talks - AI-Powered Investment Portfolio" />
               <FormLayout />
             </>
           }
@@ -103,7 +123,7 @@ function App() {
           path="/tables"
           element={
             <>
-              <PageTitle title="Tables | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Tables | Money Talks - AI-Powered Investment Portfolio" />
               <Tables />
             </>
           }
@@ -112,7 +132,7 @@ function App() {
           path="/settings"
           element={
             <>
-              <PageTitle title="Settings | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Settings | Money Talks - AI-Powered Investment Portfolio" />
               <Settings />
             </>
           }
@@ -121,7 +141,7 @@ function App() {
           path="/chart"
           element={
             <>
-              <PageTitle title="Basic Chart | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Basic Chart | Money Talks - AI-Powered Investment Portfolio" />
               <Chart />
             </>
           }
@@ -130,7 +150,7 @@ function App() {
           path="/ui/alerts"
           element={
             <>
-              <PageTitle title="Alerts | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Alerts | Money Talks - AI-Powered Investment Portfolio" />
               <Alerts />
             </>
           }
@@ -139,7 +159,7 @@ function App() {
           path="/ui/buttons"
           element={
             <>
-              <PageTitle title="Buttons | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Buttons | Money Talks - AI-Powered Investment Portfolio" />
               <Buttons />
             </>
           }
@@ -148,7 +168,7 @@ function App() {
           path="/login"
           element={
             <>
-              <PageTitle title="Signin | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Signin | Money Talks - AI-Powered Investment Portfolio" />
               <SignIn />
             </>
           }
@@ -157,7 +177,7 @@ function App() {
           path="/signup"
           element={
             <>
-              <PageTitle title="Signup | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <PageTitle title="Signup | Money Talks - AI-Powered Investment Portfolio" />
               <SignUp />
             </>
           }
