@@ -9,8 +9,7 @@ const StocksSidebar = () => {
 
   const stocks = [
     { symbol: 'GOOGL', name: 'Google', color: '#4285F4' },
-    { symbol: 'AAPL', name: 'Apple', color: '#000000' },
-    { symbol: 'MSFT', name: 'Microsoft', color: '#00A4EF' }
+    { symbol: 'AAPL', name: 'Apple', color: '#000000' }
   ];
 
   useEffect(() => {
