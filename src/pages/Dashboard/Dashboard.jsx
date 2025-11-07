@@ -2,6 +2,7 @@ import React from 'react';
 import ChartOne from '../../components/Charts/ChartOne';
 import ChartThree from '../../components/Charts/ChartThree';
 import ChartTwo from '../../components/Charts/ChartTwo';
+import ChartFour from '../../components/Charts/ChartFour';
 import TableOne from '../../components/Tables/TableOne';
 
 const Dashboard = () => {
@@ -11,6 +12,7 @@ const Dashboard = () => {
         <ChartOne />
         <ChartTwo />
         <ChartThree />
+        <ChartFour />
         <div className="col-span-12">
           <TableOne />
         </div>
