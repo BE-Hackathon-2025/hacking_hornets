@@ -16,6 +16,7 @@ import Tables from './pages/Tables';
 import Alerts from './pages/UiElements/Alerts';
 import Buttons from './pages/UiElements/Buttons';
 import AI from './pages/AI/AI';
+import Portfolio from './pages/Portfolio/Portfolio';
 import DefaultLayout from './layout/DefaultLayout';
 
 function App() {
@@ -59,6 +60,15 @@ function App() {
             <>
               <PageTitle title="Profile | Reactwind - Tailwind CSS Admin Dashboard Template" />
               <Profile />
+            </>
+          }
+        />
+        <Route
+          path="/portfolio"
+          element={
+            <>
+              <PageTitle title="Portfolio | Reactwind - Tailwind CSS Admin Dashboard Template" />
+              <Portfolio />
             </>
           }
         />
