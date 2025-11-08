@@ -1,96 +1,149 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+  getUserWatchlist,
+  addToWatchlist,
+  removeFromWatchlist
+} from '../../services/firestoreService';
+import toast from 'react-hot-toast';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import CardDataStats from '../../components/CardDataStats';
 
 const Watchlist = () => {
-  const [watchlistStocks, setWatchlistStocks] = useState([
-    { 
-      symbol: 'NVDA', 
-      name: 'NVIDIA Corporation', 
-      currentPrice: 495.22, 
-      change: 12.45, 
-      changePercent: 2.58,
-      dayHigh: 498.50,
-      dayLow: 482.30,
-      volume: '45.2M',
-      marketCap: '1.22T',
-      peRatio: 68.5,
-      added: '2025-11-01'
-    },
-    { 
-      symbol: 'AMD', 
-      name: 'Advanced Micro Devices', 
-      currentPrice: 142.88, 
-      change: -2.15, 
-      changePercent: -1.48,
-      dayHigh: 146.20,
-      dayLow: 141.50,
-      volume: '52.8M',
-      marketCap: '231B',
-      peRatio: 42.3,
-      added: '2025-10-28'
-    },
-    { 
-      symbol: 'META', 
-      name: 'Meta Platforms Inc.', 
-      currentPrice: 478.30, 
-      change: 8.90, 
-      changePercent: 1.90,
-      dayHigh: 482.75,
-      dayLow: 470.40,
-      volume: '18.5M',
-      marketCap: '1.21T',
-      peRatio: 28.7,
-      added: '2025-10-25'
-    },
-    { 
-      symbol: 'NFLX', 
-      name: 'Netflix Inc.', 
-      currentPrice: 638.45, 
-      change: 15.60, 
-      changePercent: 2.50,
-      dayHigh: 642.10,
-      dayLow: 625.80,
-      volume: '8.3M',
-      marketCap: '274B',
-      peRatio: 45.2,
-      added: '2025-10-20'
-    },
-    { 
-      symbol: 'DIS', 
-      name: 'The Walt Disney Company', 
-      currentPrice: 92.35, 
-      change: -1.25, 
-      changePercent: -1.33,
-      dayHigh: 94.20,
-      dayLow: 91.80,
-      volume: '12.4M',
-      marketCap: '168B',
-      peRatio: 78.9,
-      added: '2025-10-15'
-    },
-  ]);
-
+  const { currentUser } = useAuth();
+  const [watchlistStocks, setWatchlistStocks] = useState([]);
   const [newSymbol, setNewSymbol] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
 
-  const handleRemoveStock = (symbol) => {
-    setWatchlistStocks(watchlistStocks.filter(stock => stock.symbol !== symbol));
-  };
+  // Load watchlist on mount
+  useEffect(() => {
+    if (currentUser) {
+      loadWatchlist();
+    }
+  }, [currentUser]);
 
-  const handleAddStock = (e) => {
-    e.preventDefault();
-    // In a real app, this would fetch stock data from an API
-    if (newSymbol.trim()) {
-      alert(`Add ${newSymbol.toUpperCase()} to watchlist (API integration needed)`);
-      setNewSymbol('');
-      setShowAddForm(false);
+  const loadWatchlist = async () => {
+    try {
+      setLoading(true);
+      const result = await getUserWatchlist(currentUser.uid);
+      if (result.success) {
+        setWatchlistStocks(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading watchlist:', error);
+      toast.error('Failed to load watchlist');
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Fetch stock data from Polygon API
+  const fetchStockData = async (symbol) => {
+    try {
+      const API_KEY = import.meta.env.VITE_POLYGON_API_KEY;
+      
+      // Get current quote
+      const quoteResponse = await fetch(
+        `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${API_KEY}`
+      );
+      const quoteData = await quoteResponse.json();
+      
+      // Get ticker details for company name
+      const detailsResponse = await fetch(
+        `https://api.polygon.io/v3/reference/tickers/${symbol}?apiKey=${API_KEY}`
+      );
+      const detailsData = await detailsResponse.json();
+      
+      if (quoteData.results && quoteData.results.length > 0) {
+        const result = quoteData.results[0];
+        const change = result.c - result.o;
+        const changePercent = (change / result.o) * 100;
+        
+        return {
+          symbol: symbol,
+          name: detailsData.results?.name || symbol,
+          currentPrice: result.c,
+          change: change,
+          changePercent: changePercent,
+          dayHigh: result.h,
+          dayLow: result.l,
+          volume: result.v.toString(),
+          marketCap: detailsData.results?.market_cap?.toString() || 'N/A',
+          peRatio: 'N/A' // Polygon doesn't provide P/E ratio in free tier
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching stock data:', error);
+      return null;
+    }
+  };
+
+  const handleRemoveStock = async (stockId, symbol) => {
+    try {
+      await removeFromWatchlist(currentUser.uid, stockId);
+      setWatchlistStocks(watchlistStocks.filter(stock => stock.id !== stockId));
+      toast.success(`${symbol} removed from watchlist`);
+    } catch (error) {
+      console.error('Error removing stock:', error);
+      toast.error('Failed to remove stock');
+    }
+  };
+
+  const handleAddStock = async (e) => {
+    e.preventDefault();
+    if (!newSymbol.trim()) return;
+
+    try {
+      setAdding(true);
+      const upperSymbol = newSymbol.toUpperCase();
+      
+      // Check if stock already in watchlist
+      if (watchlistStocks.some(stock => stock.symbol === upperSymbol)) {
+        toast.error('Stock already in watchlist');
+        setAdding(false);
+        return;
+      }
+
+      // Fetch stock data from API
+      const stockData = await fetchStockData(upperSymbol);
+      
+      if (stockData) {
+        // Add to Firestore
+        const result = await addToWatchlist(currentUser.uid, stockData);
+        if (result.success) {
+          // Reload watchlist
+          await loadWatchlist();
+          toast.success(`${upperSymbol} added to watchlist`);
+          setNewSymbol('');
+          setShowAddForm(false);
+        }
+      } else {
+        toast.error('Could not find stock data. Please check the symbol.');
+      }
+    } catch (error) {
+      console.error('Error adding stock:', error);
+      toast.error('Failed to add stock to watchlist');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   const gainers = watchlistStocks.filter(s => s.change > 0).length;
   const losers = watchlistStocks.filter(s => s.change < 0).length;
-  const avgChange = (watchlistStocks.reduce((sum, s) => sum + s.changePercent, 0) / watchlistStocks.length).toFixed(2);
+  const avgChange = watchlistStocks.length > 0 
+    ? (watchlistStocks.reduce((sum, s) => sum + s.changePercent, 0) / watchlistStocks.length).toFixed(2)
+    : '0.00';
 
   return (
     <>
@@ -126,7 +179,7 @@ const Watchlist = () => {
         <CardDataStats 
           title="Gainers Today" 
           total={gainers.toString()} 
-          rate={`${((gainers/watchlistStocks.length)*100).toFixed(0)}%`}
+          rate={watchlistStocks.length > 0 ? `${((gainers/watchlistStocks.length)*100).toFixed(0)}%` : '0%'}
           levelUp
         >
           <svg
@@ -147,7 +200,7 @@ const Watchlist = () => {
         <CardDataStats 
           title="Losers Today" 
           total={losers.toString()} 
-          rate={`${((losers/watchlistStocks.length)*100).toFixed(0)}%`}
+          rate={watchlistStocks.length > 0 ? `${((losers/watchlistStocks.length)*100).toFixed(0)}%` : '0%'}
           levelDown
         >
           <svg
@@ -227,9 +280,10 @@ const Watchlist = () => {
               </div>
               <button
                 type="submit"
-                className="rounded-lg bg-primary px-8 py-3 font-medium text-white hover:bg-opacity-90"
+                disabled={adding}
+                className="rounded-lg bg-primary px-8 py-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Add
+                {adding ? 'Adding...' : 'Add'}
               </button>
               <button
                 type="button"
@@ -289,7 +343,16 @@ const Watchlist = () => {
                 </tr>
               </thead>
               <tbody>
-                {watchlistStocks.map((stock, index) => (
+                {watchlistStocks.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" className="py-12 text-center">
+                      <p className="text-lg text-bodydark dark:text-bodydark">
+                        Your watchlist is empty. Add stocks to start tracking!
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  watchlistStocks.map((stock, index) => (
                   <tr key={index} className="border-b border-[#eee] dark:border-strokedark">
                     <td className="py-5 px-4 pl-9 xl:pl-11">
                       <h5 className="font-bold text-black dark:text-white">
@@ -363,7 +426,7 @@ const Watchlist = () => {
                           </svg>
                         </button>
                         <button 
-                          onClick={() => handleRemoveStock(stock.symbol)}
+                          onClick={() => handleRemoveStock(stock.id, stock.symbol)}
                           className="hover:text-danger"
                           title="Remove from Watchlist"
                         >
@@ -384,7 +447,8 @@ const Watchlist = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
