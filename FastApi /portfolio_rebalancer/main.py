@@ -184,3 +184,20 @@ def get_portfolios_by_users(user_id: int, db: Session = Depends(get_db)):
         }
         for p in portfolios
     ]
+
+@app.get("/model_request_{user_id}")
+def get_portfolios_by_users(user_id: int, db: Session = Depends(get_db)):
+    portfolios = db.query(Portfolio).filter(Portfolio.user_id == user_id).all()
+    if not portfolios:
+        raise HTTPException(status_code=404, detail="No portfolios found for this user")
+
+    return [
+        {
+            "id": p.id,
+            "user_id": p.user_id,
+            "total_value": p.total_value,
+            "cash_buffer": p.cash_buffer,
+            "recommendations": p.recommendations
+        }
+        for p in portfolios
+    ]
