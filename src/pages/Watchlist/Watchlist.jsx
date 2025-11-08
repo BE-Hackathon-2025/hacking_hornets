@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import CardDataStats from '../../components/CardDataStats';
+import AuthPrompt from '../../components/AuthPrompt';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from "/Users/valerylouis/Documents/BeSmart2025/hacking_hornets/src/firebase/config.js"; // Adjust path to your firebase config
 
 const Watchlist = () => {
   const [watchlistStocks, setWatchlistStocks] = useState([
@@ -73,6 +76,20 @@ const Watchlist = () => {
 
   const [newSymbol, setNewSymbol] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  const [user, isloading] = useAuthState(auth);
+
+  if (isloading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-boxdark-2">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPrompt />;
+  }
 
   const handleRemoveStock = (symbol) => {
     setWatchlistStocks(watchlistStocks.filter(stock => stock.symbol !== symbol));

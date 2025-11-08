@@ -21,6 +21,7 @@ import Portfolio from './pages/Portfolio/Portfolio';
 import Watchlist from './pages/Watchlist/Watchlist';
 import About from './pages/About/About';
 import DefaultLayout from './layout/DefaultLayout';
+import Home from './pages/Home/Home';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -50,11 +51,11 @@ function App() {
           }
         />
         <Route
-          path="/calendar"
+          path="/home"
           element={
             <>
               <PageTitle title="Calendar | Money Talks - AI-Powered Investment Portfolio" />
-              <Calendar />
+              <Home/>
             </>
           }
         />
@@ -181,6 +182,15 @@ function App() {
             <>
               <PageTitle title="Signup | Money Talks - AI-Powered Investment Portfolio" />
               <SignUp />
+            </>
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <>
+              <PageTitle title="Calendar | Money Talks - AI-Powered Investment Portfolio" />
+              <Home/>
             </>
           }
         />

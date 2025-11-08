@@ -69,8 +69,8 @@ const SignIn = () => {
   };
   
   return (
-    <>
-      <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-boxdark-2 py-8"> {/* Added min-h-screen and py-8 */}
+      <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark w-full max-w-7xl mx-4"> {/* Added max-width and margin */}
         <div className="flex flex-wrap items-center">
           <div className="hidden w-full xl:block xl:w-1/2">
             <div className="py-17.5 px-26 text-center">
@@ -342,7 +342,7 @@ const SignIn = () => {
 
                 <div className="mt-6 text-center">
                   <p>
-                    Don’t have any account?{' '}
+                    Don't have any account?{' '}
                     <Link to="/signup" className="text-primary">
                       Sign Up
                     </Link>
@@ -353,7 +353,7 @@ const SignIn = () => {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
