@@ -13,6 +13,7 @@ import {
 
 const API_KEY = import.meta.env.VITE_POLYGON_API_KEY;
 const CACHE_DURATION_MINUTES = 60; // Cache stock prices for 60 minutes (1 hour)
+const STALE_TIME_MINUTES = 2; // Prefer cache that's at least 2 minutes old to avoid constant fetching
 
 /**
  * Fetch current stock price (with caching)
@@ -24,48 +25,55 @@ const CACHE_DURATION_MINUTES = 60; // Cache stock prices for 60 minutes (1 hour)
  */
 export const getCurrentStockPrice = async (userId, symbol, forceRefresh = false, cacheFirst = true) => {
   try {
-    // Always check cache first for instant loading
-    if (cacheFirst) {
-      const cached = await getCachedStockPrice(userId, symbol, CACHE_DURATION_MINUTES);
+    // Always check cache first for instant loading, prefer stale cache (2+ mins old)
+    if (cacheFirst && !forceRefresh) {
+      const cached = await getCachedStockPrice(userId, symbol, CACHE_DURATION_MINUTES, STALE_TIME_MINUTES);
       if (cached.success) {
-        console.log(`Using cached price for ${symbol}`);
-        return { success: true, data: cached.data, fromCache: true };
+        console.log(`Using cached price for ${symbol} (${cached.cacheAgeMinutes} mins old)`);
+        // If cache is "stale enough" (2+ mins), just return it without fetching
+        if (cached.isStale || cached.cacheAgeMinutes >= STALE_TIME_MINUTES) {
+          return { success: true, data: cached.data, fromCache: true, isStale: true };
+        }
+        // If cache is very fresh (< 2 mins), still return it to avoid API spam
+        return { success: true, data: cached.data, fromCache: true, isStale: false };
       }
     }
 
-    // If no cache or force refresh, fetch from API
-    console.log(`Fetching fresh price for ${symbol} from API`);
-    const data = await polygonRateLimiter.enqueue(async () => {
-      const response = await fetch(
-        `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${API_KEY}`
-      );
-      return response.json();
-    });
-
-    if (data.results && data.results.length > 0) {
-      const price = data.results[0].c;
-      
-      // Cache the result
-      await cacheStockPrice(userId, symbol, price, {
-        open: data.results[0].o,
-        high: data.results[0].h,
-        low: data.results[0].l,
-        volume: data.results[0].v
+    // Only fetch from API if no cache exists or forced refresh
+    if (forceRefresh || !cacheFirst) {
+      console.log(`Fetching fresh price for ${symbol} from API`);
+      const data = await polygonRateLimiter.enqueue(async () => {
+        const response = await fetch(
+          `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${API_KEY}`
+        );
+        return response.json();
       });
 
-      return { 
-        success: true, 
-        data: { 
-          symbol, 
-          price,
+      if (data.results && data.results.length > 0) {
+        const price = data.results[0].c;
+        
+        // Cache the result
+        await cacheStockPrice(userId, symbol, price, {
           open: data.results[0].o,
           high: data.results[0].h,
           low: data.results[0].l,
-          volume: data.results[0].v,
-          timestamp: Date.now()
-        },
-        fromCache: false 
-      };
+          volume: data.results[0].v
+        });
+
+        return { 
+          success: true, 
+          data: { 
+            symbol, 
+            price,
+            open: data.results[0].o,
+            high: data.results[0].h,
+            low: data.results[0].l,
+            volume: data.results[0].v,
+            timestamp: Date.now()
+          },
+          fromCache: false 
+        };
+      }
     }
 
     return { success: false, error: 'No data available', fromCache: false };
@@ -87,9 +95,9 @@ export const getCurrentStockPrices = async (userId, symbols, forceRefresh = fals
     const prices = {};
     const symbolsToFetch = [];
 
-    // Check cache for all symbols first
+    // Check cache for all symbols first, prefer stale cache (2+ mins old)
     if (!forceRefresh) {
-      const cachedResult = await getCachedStockPrices(userId, symbols, CACHE_DURATION_MINUTES);
+      const cachedResult = await getCachedStockPrices(userId, symbols, CACHE_DURATION_MINUTES, STALE_TIME_MINUTES);
       
       if (cachedResult.success) {
         // Add cached prices to result
@@ -98,7 +106,7 @@ export const getCurrentStockPrices = async (userId, symbols, forceRefresh = fals
           console.log(`Using cached price for ${symbol}`);
         });
 
-        // Find symbols that need to be fetched
+        // Find symbols that need to be fetched (only if no cache at all)
         symbols.forEach(symbol => {
           if (!prices[symbol]) {
             symbolsToFetch.push(symbol);
@@ -111,12 +119,12 @@ export const getCurrentStockPrices = async (userId, symbols, forceRefresh = fals
       symbolsToFetch.push(...symbols);
     }
 
-    // Fetch missing symbols from API
+    // Only fetch missing symbols from API (not symbols with any cache)
     if (symbolsToFetch.length > 0) {
       console.log(`Fetching ${symbolsToFetch.length} symbols from API:`, symbolsToFetch);
       
       const fetchPromises = symbolsToFetch.map(symbol => 
-        getCurrentStockPrice(userId, symbol, true) // Force refresh for these
+        getCurrentStockPrice(userId, symbol, true, false) // Force refresh, no cache check
       );
 
       const results = await Promise.all(fetchPromises);
@@ -174,11 +182,11 @@ export const getHistoricalStockPrice = async (userId, symbol, date, forceRefresh
       return { success: false, error: 'Unable to fetch current price', fromCache: false };
     }
     
-    // Check cache first
+    // Check cache first, prefer stale cache (2+ mins old)
     if (!forceRefresh) {
-      const cached = await getCachedStockPrice(userId, cacheKey, CACHE_DURATION_MINUTES);
+      const cached = await getCachedStockPrice(userId, cacheKey, CACHE_DURATION_MINUTES, STALE_TIME_MINUTES);
       if (cached.success) {
-        console.log(`Using cached historical price for ${symbol} on ${date}`);
+        console.log(`Using cached historical price for ${symbol} on ${date} (${cached.cacheAgeMinutes} mins old)`);
         return { success: true, data: cached.data, fromCache: true };
       }
     }

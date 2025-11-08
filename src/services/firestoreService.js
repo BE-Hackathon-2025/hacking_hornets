@@ -691,7 +691,7 @@ export const cacheStockPrice = async (userId, symbol, price, additionalData = {}
  * @param {number} maxAgeMinutes - Maximum age of cached data in minutes (default: 5)
  * @returns {object} - Cached price data or null if expired/not found
  */
-export const getCachedStockPrice = async (userId, symbol, maxAgeMinutes = 5) => {
+export const getCachedStockPrice = async (userId, symbol, maxAgeMinutes = 5, preferStaleMinutes = 0) => {
   try {
     const cacheRef = doc(db, 'users', userId, 'priceCache', symbol);
     const cacheSnap = await getDoc(cacheRef);
@@ -701,9 +701,19 @@ export const getCachedStockPrice = async (userId, symbol, maxAgeMinutes = 5) => 
       const now = Date.now();
       const cacheAge = now - (data.timestamp || 0);
       const maxAge = maxAgeMinutes * 60 * 1000; // Convert to milliseconds
+      const staleTime = preferStaleMinutes * 60 * 1000; // Minimum age to prefer
       
+      // If cache is within valid range
       if (cacheAge < maxAge) {
-        return { success: true, data, isCached: true };
+        // If we prefer stale data and cache is fresh, mark it but still return it
+        const isStale = cacheAge >= staleTime;
+        return { 
+          success: true, 
+          data, 
+          isCached: true,
+          isStale, // true if cache is old enough to prefer
+          cacheAgeMinutes: Math.floor(cacheAge / (60 * 1000))
+        };
       } else {
         return { success: false, error: 'Cache expired', isCached: false };
       }
@@ -721,12 +731,13 @@ export const getCachedStockPrice = async (userId, symbol, maxAgeMinutes = 5) => 
  * @param {string} userId - The user's Firebase Auth UID
  * @param {string[]} symbols - Array of stock symbols
  * @param {number} maxAgeMinutes - Maximum age of cached data in minutes (default: 5)
+ * @param {number} preferStaleMinutes - Prefer cache that's at least this old (default: 0)
  * @returns {object} - Object with symbol keys and cached price data
  */
-export const getCachedStockPrices = async (userId, symbols, maxAgeMinutes = 5) => {
+export const getCachedStockPrices = async (userId, symbols, maxAgeMinutes = 5, preferStaleMinutes = 0) => {
   try {
     const cachePromises = symbols.map(symbol => 
-      getCachedStockPrice(userId, symbol, maxAgeMinutes)
+      getCachedStockPrice(userId, symbol, maxAgeMinutes, preferStaleMinutes)
     );
     const results = await Promise.all(cachePromises);
     
