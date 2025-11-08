@@ -58,13 +58,12 @@ const DropdownNotification = () => {
                 >
                   <p className="text-sm">
                     <span className="text-black dark:text-white">
-                      Edit your information in a swipe
+                      📈 AAPL stock up 5.2%
                     </span>{' '}
-                    Sint occaecat cupidatat non proident, sunt in culpa qui
-                    officia deserunt mollit anim.
+                    Your Apple Inc. shares have gained $2,450 today. Consider reviewing your position.
                   </p>
 
-                  <p className="text-xs">12 May, 2025</p>
+                  <p className="text-xs">2 hours ago</p>
                 </Link>
               </li>
               <li>
@@ -74,12 +73,12 @@ const DropdownNotification = () => {
                 >
                   <p className="text-sm">
                     <span className="text-black dark:text-white">
-                      It is a long established fact
+                      💰 Dividend Received
                     </span>{' '}
-                    that a reader will be distracted by the readable.
+                    You've received $124.50 in dividends from MSFT. Funds added to your cash balance.
                   </p>
 
-                  <p className="text-xs">24 Feb, 2025</p>
+                  <p className="text-xs">1 day ago</p>
                 </Link>
               </li>
               <li>
@@ -89,13 +88,12 @@ const DropdownNotification = () => {
                 >
                   <p className="text-sm">
                     <span className="text-black dark:text-white">
-                      There are many variations
+                      🎯 Portfolio Milestone
                     </span>{' '}
-                    of passages of Lorem Ipsum available, but the majority have
-                    suffered
+                    Congratulations! Your portfolio has reached $100,000 in total value.
                   </p>
 
-                  <p className="text-xs">04 Jan, 2025</p>
+                  <p className="text-xs">3 days ago</p>
                 </Link>
               </li>
               <li>
@@ -105,13 +103,12 @@ const DropdownNotification = () => {
                 >
                   <p className="text-sm">
                     <span className="text-black dark:text-white">
-                      There are many variations
+                      🤖 AI Recommendation
                     </span>{' '}
-                    of passages of Lorem Ipsum available, but the majority have
-                    suffered
+                    Based on market analysis, consider diversifying into renewable energy stocks.
                   </p>
 
-                  <p className="text-xs">01 Dec, 2024</p>
+                  <p className="text-xs">1 week ago</p>
                 </Link>
               </li>
             </ul>
