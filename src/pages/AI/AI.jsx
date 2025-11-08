@@ -10,7 +10,7 @@ import {
   updatePortfolio,
   buyShares
 } from '../../services/firestoreService';
-import { getPortfolioAdvice } from '../../services/fastApiService';
+import { getPortfolioAdvice, getFinanceQA } from '../../services/fastApiService';
 import toast from 'react-hot-toast';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import StocksSidebar from '../../components/Stocks/StocksSidebar';
@@ -39,6 +39,13 @@ const AI = () => {
   if (!user) {
     return <AuthPrompt />;
   }
+
+  // Helper function to detect if query is portfolio-related
+  const isPortfolioQuery = (query) => {
+    const lowerQuery = query.toLowerCase();
+    // Only detect as portfolio query if user explicitly mentions "portfolio"
+    return lowerQuery.includes('portfolio');
+  };
 
   // Load conversations on mount
   useEffect(() => {
@@ -120,20 +127,24 @@ const AI = () => {
     // Replace escaped newlines with actual newlines
     cleaned = cleaned.replace(/\\n/g, '\n');
     
-    // Remove the "Based on your query:" line
+    // Remove common AI preambles and verbose text
     cleaned = cleaned.replace(/Based on your query:.*?\n/i, '').trim();
-    
-    // Remove the analysis/recommendation text
-    cleaned = cleaned.replace(/After analyzing your current holdings and market conditions, I recommend the following portfolio adjustments:/gi, '').trim();
-    cleaned = cleaned.replace(/I recommend starting with a diversified portfolio focusing on.*?:/gi, '').trim();
+    cleaned = cleaned.replace(/After analyzing your current holdings and market conditions,?\s*/gi, '').trim();
+    cleaned = cleaned.replace(/I recommend the following portfolio adjustments:?\s*/gi, '').trim();
+    cleaned = cleaned.replace(/I recommend starting with a diversified portfolio focusing on.*?:\s*/gi, '').trim();
     cleaned = cleaned.replace(/These additions will enhance your portfolio.*?\./gi, '').trim();
     cleaned = cleaned.replace(/These stocks provide.*?\./gi, '').trim();
+    cleaned = cleaned.replace(/Here's what I think:?\s*/gi, '').trim();
+    cleaned = cleaned.replace(/Let me explain:?\s*/gi, '').trim();
     
     // Remove extra spaces and clean up
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
     
     // Remove any remaining escaped quotes
     cleaned = cleaned.replace(/\\"/g, '"');
+    
+    // Remove leading/trailing whitespace from each line
+    cleaned = cleaned.split('\n').map(line => line.trim()).join('\n');
     
     return cleaned;
   };
@@ -323,35 +334,51 @@ const AI = () => {
       });
       console.log('User message saved successfully');
 
-      // All queries go through portfolio advice (agent_a or agent_b)
+      // Detect if query is portfolio-related or general finance question
+      const isPortfolioRelated = isPortfolioQuery(userInput);
+      console.log('Query type:', isPortfolioRelated ? 'Portfolio-related' : 'General finance');
+
       try {
-        const result = await getPortfolioAdvice(userInput, null, currentUser.uid);
-        
         let aiResponseText;
-        if (result.success) {
-          aiResponseText = result.data || "I analyzed your request, but couldn't format the response properly.";
+        
+        if (isPortfolioRelated) {
+          // Portfolio-related query: use agent_a or agent_b
+          const result = await getPortfolioAdvice(userInput, null, currentUser.uid);
           
-          // Parse agent output for portfolio recommendations
-          const portfolioAssets = parseAgentOutput(aiResponseText);
-          
-          if (portfolioAssets && portfolioAssets.length > 0) {
-            // Automatically apply the portfolio updates
-            await handlePortfolioUpdate(portfolioAssets);
+          if (result.success) {
+            aiResponseText = result.data || "I analyzed your request, but couldn't format the response properly.";
             
-            // Build detailed message showing what changed
-            let detailsMessage = '✅ Portfolio updated!\n\n';
-            detailsMessage += 'Added/Updated stocks:\n';
-            portfolioAssets.forEach(asset => {
-              detailsMessage += `• ${asset.name} (${asset.symbol}): ${asset.shares} shares @ $${asset.avgPrice.toFixed(2)}\n`;
-            });
+            // Parse agent output for portfolio recommendations
+            const portfolioAssets = parseAgentOutput(aiResponseText);
             
-            aiResponseText = detailsMessage;
+            if (portfolioAssets && portfolioAssets.length > 0) {
+              // Automatically apply the portfolio updates
+              await handlePortfolioUpdate(portfolioAssets);
+              
+              // Build detailed message showing what changed
+              let detailsMessage = '✅ Portfolio updated!\n\n';
+              detailsMessage += 'Added/Updated stocks:\n';
+              portfolioAssets.forEach(asset => {
+                detailsMessage += `• ${asset.name} (${asset.symbol}): ${asset.shares} shares @ $${asset.avgPrice.toFixed(2)}\n`;
+              });
+              
+              aiResponseText = detailsMessage;
+            } else {
+              // Clean the response text only if no portfolio update
+              aiResponseText = cleanAIResponse(aiResponseText);
+            }
           } else {
-            // Clean the response text only if no portfolio update (for general queries)
-            aiResponseText = cleanAIResponse(aiResponseText);
+            aiResponseText = "I'm sorry, I encountered an error while processing your request. Please make sure the backend server is running and try again.";
           }
         } else {
-          aiResponseText = "I'm sorry, I encountered an error while processing your request. Please make sure the backend server is running and try again.";
+          // General finance question: use OpenAI Q&A
+          const result = await getFinanceQA(userInput);
+          
+          if (result.success) {
+            aiResponseText = result.data || "I couldn't generate a response to your question.";
+          } else {
+            aiResponseText = "I'm sorry, I encountered an error while processing your question. Please try again.";
+          }
         }
 
         // Remove loading message and add actual response
@@ -375,7 +402,7 @@ const AI = () => {
         
         setLoading(false);
       } catch (error) {
-        console.error('Error getting portfolio advice:', error);
+        console.error('Error getting AI response:', error);
         
         // Remove loading message
         setMessages(prev => prev.filter(msg => !msg.isLoading));

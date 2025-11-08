@@ -43,3 +43,31 @@ export const getPortfolioAdvice = async (query, portfolio, userId) => {
     return { success: false, error: error.message };
   }
 };
+
+/**
+ * Get general finance Q&A response
+ * @param {string} query - User's finance question
+ * @returns {Promise<object>} - Finance answer
+ */
+export const getFinanceQA = async (query) => {
+  try {
+    const response = await fetch(`${FASTAPI_BASE_URL}/finance_qa`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.text();
+    const cleanData = data.replace(/^"|"$/g, '');
+    return { success: true, data: cleanData };
+  } catch (error) {
+    console.error('Error getting finance Q&A:', error);
+    return { success: false, error: error.message };
+  }
+};
