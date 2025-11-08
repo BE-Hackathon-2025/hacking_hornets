@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Route, Routes, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 
 import Loader from './common/Loader';
 import PageTitle from './components/PageTitle';
+import ProtectedRoute from './components/ProtectedRoute';
 import SignIn from './pages/Authentication/SignIn';
 import SignUp from './pages/Authentication/SignUp';
 import Calendar from './pages/Calendar';
@@ -39,134 +40,8 @@ function App() {
     <Loader />
   ) : (
     <AuthProvider>
-      <DefaultLayout>
-        <Routes>
-        <Route
-          path="/dashboard"
-          element={
-            <>
-              <PageTitle title="Dashboard | Money Talks - AI-Powered Investment Portfolio" />
-              <Dashboard />
-            </>
-          }
-        />
-        <Route
-          path="/home"
-          element={
-            <>
-              <PageTitle title="Calendar | Money Talks - AI-Powered Investment Portfolio" />
-              <Home/>
-            </>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <>
-              <PageTitle title="Profile | Money Talks - AI-Powered Investment Portfolio" />
-              <Profile />
-            </>
-          }
-        />
-        <Route
-          path="/portfolio"
-          element={
-            <>
-              <PageTitle title="Portfolio | Money Talks - AI-Powered Investment Portfolio" />
-              <Portfolio />
-            </>
-          }
-        />
-        <Route
-          path="/watchlist"
-          element={
-            <>
-              <PageTitle title="Watchlist | Money Talks - AI-Powered Investment Portfolio" />
-              <Watchlist />
-            </>
-          }
-        />
-        <Route
-          path="/about"
-          element={
-            <>
-              <PageTitle title="About | Money Talks - AI-Powered Investment Portfolio" />
-              <About />
-            </>
-          }
-        />
-        <Route
-          path="/ai"
-          element={
-            <>
-              <PageTitle title="AI Assistant | Money Talks - AI-Powered Investment Portfolio" />
-              <AI />
-            </>
-          }
-        />
-        <Route
-          path="/forms/form-elements"
-          element={
-            <>
-              <PageTitle title="Form Elements | Money Talks - AI-Powered Investment Portfolio" />
-              <FormElements />
-            </>
-          }
-        />
-        <Route
-          path="/forms/form-layout"
-          element={
-            <>
-              <PageTitle title="Form Layout | Money Talks - AI-Powered Investment Portfolio" />
-              <FormLayout />
-            </>
-          }
-        />
-        <Route
-          path="/tables"
-          element={
-            <>
-              <PageTitle title="Tables | Money Talks - AI-Powered Investment Portfolio" />
-              <Tables />
-            </>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <>
-              <PageTitle title="Settings | Money Talks - AI-Powered Investment Portfolio" />
-              <Settings />
-            </>
-          }
-        />
-        <Route
-          path="/chart"
-          element={
-            <>
-              <PageTitle title="Basic Chart | Money Talks - AI-Powered Investment Portfolio" />
-              <Chart />
-            </>
-          }
-        />
-        <Route
-          path="/ui/alerts"
-          element={
-            <>
-              <PageTitle title="Alerts | Money Talks - AI-Powered Investment Portfolio" />
-              <Alerts />
-            </>
-          }
-        />
-        <Route
-          path="/ui/buttons"
-          element={
-            <>
-              <PageTitle title="Buttons | Money Talks - AI-Powered Investment Portfolio" />
-              <Buttons />
-            </>
-          }
-        />
+      <Routes>
+        {/* Public Routes - Login and Signup */}
         <Route
           path="/login"
           element={
@@ -185,6 +60,172 @@ function App() {
             </>
           }
         />
+
+        {/* Protected Routes - Require Authentication */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <Navigate to="/dashboard" replace />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Dashboard | Money Talks - AI-Powered Investment Portfolio" />
+                <Dashboard />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calendar"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Calendar | Money Talks - AI-Powered Investment Portfolio" />
+                <Calendar />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Profile | Money Talks - AI-Powered Investment Portfolio" />
+                <Profile />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/portfolio"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Portfolio | Money Talks - AI-Powered Investment Portfolio" />
+                <Portfolio />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/watchlist"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Watchlist | Money Talks - AI-Powered Investment Portfolio" />
+                <Watchlist />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/about"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="About | Money Talks - AI-Powered Investment Portfolio" />
+                <About />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="AI Assistant | Money Talks - AI-Powered Investment Portfolio" />
+                <AI />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/forms/form-elements"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Form Elements | Money Talks - AI-Powered Investment Portfolio" />
+                <FormElements />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/forms/form-layout"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Form Layout | Money Talks - AI-Powered Investment Portfolio" />
+                <FormLayout />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tables"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Tables | Money Talks - AI-Powered Investment Portfolio" />
+                <Tables />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Settings | Money Talks - AI-Powered Investment Portfolio" />
+                <Settings />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chart"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Basic Chart | Money Talks - AI-Powered Investment Portfolio" />
+                <Chart />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ui/alerts"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Alerts | Money Talks - AI-Powered Investment Portfolio" />
+                <Alerts />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ui/buttons"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Buttons | Money Talks - AI-Powered Investment Portfolio" />
+                <Buttons />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/"
           element={
@@ -195,7 +236,6 @@ function App() {
           }
         />
       </Routes>
-    </DefaultLayout>
     </AuthProvider>
   );
 }
