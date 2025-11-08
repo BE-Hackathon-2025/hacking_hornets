@@ -363,31 +363,6 @@ const AI = () => {
               </div>
             )}
 
-            {/* Info Card */}
-            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-              <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark">
-                <h3 className="font-medium text-black dark:text-white">
-                  About This AI Assistant
-                </h3>
-              </div>
-              <div className="p-6.5">
-                <p className="text-black dark:text-white">
-                  This is a demo AI chat interface. In a production environment, you would integrate
-                  this with an AI service like OpenAI's GPT, Google's Gemini, or other AI APIs to
-                  provide intelligent responses to user queries.
-                </p>
-                <div className="mt-4 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-3 w-3 rounded-full bg-success"></span>
-                    <span className="text-sm text-bodydark dark:text-bodydark">Connected</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-3 w-3 rounded-full bg-primary"></span>
-                    <span className="text-sm text-bodydark dark:text-bodydark">Demo Mode Active</span>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
