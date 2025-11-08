@@ -55,14 +55,29 @@ const AI = () => {
       const result = await createConversation(currentUser.uid, title);
       
       if (result.success) {
-        // Set the new conversation as current with empty messages
+        // Create default welcome message
+        const welcomeMessage = {
+          id: 1,
+          text: "Hello! I'm your Money Talks AI assistant. I can help you with investment strategies, portfolio analysis, market insights, and answer questions about your holdings. How can I assist you today?",
+          sender: 'ai',
+          role: 'assistant',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        
+        // Save welcome message to Firestore
+        await addMessage(currentUser.uid, result.conversationId, {
+          role: 'assistant',
+          content: welcomeMessage.text
+        });
+        
+        // Set the new conversation as current with welcome message
         const newConversation = {
           id: result.conversationId,
           title: title,
-          messages: []
+          messages: [welcomeMessage]
         };
         setCurrentConversation(newConversation);
-        setMessages([]);
+        setMessages([welcomeMessage]);
         
         // Reload conversations list without changing current conversation
         const convResult = await getUserConversations(currentUser.uid);

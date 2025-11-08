@@ -322,7 +322,7 @@ export const addMessage = async (userId, conversationId, message) => {
     await updateDoc(conversationRef, {
       messages: arrayUnion({ 
         ...message, 
-        timestamp: new Date().toISOString() // Use ISO string for consistency
+        timestamp: new Date().toISOString()
       }),
       updatedAt: serverTimestamp()
     });
@@ -369,6 +369,115 @@ export const deleteConversation = async (userId, conversationId) => {
     return { success: true };
   } catch (error) {
     console.error('Error deleting conversation:', error);
+    throw error;
+  }
+};
+
+// ============================================
+// WATCHLIST OPERATIONS
+// ============================================
+
+/**
+ * Get all watchlist items for a user
+ * @param {string} userId - The user's Firebase Auth UID
+ */
+export const getUserWatchlist = async (userId) => {
+  try {
+    const watchlistRef = collection(db, 'users', userId, 'watchlist');
+    const q = query(watchlistRef, orderBy('addedAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    
+    const watchlist = [];
+    querySnapshot.forEach((doc) => {
+      watchlist.push({ id: doc.id, ...doc.data() });
+    });
+    
+    return { success: true, data: watchlist };
+  } catch (error) {
+    console.error('Error getting watchlist:', error);
+    throw error;
+  }
+};
+
+/**
+ * Add a stock to the watchlist
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {object} stockData - Stock data (symbol, name, currentPrice, etc.)
+ */
+export const addToWatchlist = async (userId, stockData) => {
+  try {
+    const watchlistRef = collection(db, 'users', userId, 'watchlist');
+    const docRef = await addDoc(watchlistRef, {
+      ...stockData,
+      addedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    console.log('Stock added to watchlist successfully');
+    return { success: true, watchlistItemId: docRef.id };
+  } catch (error) {
+    console.error('Error adding to watchlist:', error);
+    throw error;
+  }
+};
+
+/**
+ * Remove a stock from the watchlist
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} watchlistItemId - The watchlist item document ID
+ */
+export const removeFromWatchlist = async (userId, watchlistItemId) => {
+  try {
+    const watchlistItemRef = doc(db, 'users', userId, 'watchlist', watchlistItemId);
+    await deleteDoc(watchlistItemRef);
+    console.log('Stock removed from watchlist successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('Error removing from watchlist:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update a watchlist item (e.g., update current price)
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} watchlistItemId - The watchlist item document ID
+ * @param {object} updates - Fields to update
+ */
+export const updateWatchlistItem = async (userId, watchlistItemId, updates) => {
+  try {
+    const watchlistItemRef = doc(db, 'users', userId, 'watchlist', watchlistItemId);
+    await updateDoc(watchlistItemRef, {
+      ...updates,
+      updatedAt: serverTimestamp()
+    });
+    console.log('Watchlist item updated successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating watchlist item:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if a stock is in the watchlist
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} symbol - Stock symbol to check
+ */
+export const isInWatchlist = async (userId, symbol) => {
+  try {
+    const watchlistRef = collection(db, 'users', userId, 'watchlist');
+    const querySnapshot = await getDocs(watchlistRef);
+    
+    let found = false;
+    querySnapshot.forEach((doc) => {
+      if (doc.data().symbol === symbol) {
+        found = true;
+      }
+    });
+    
+    return { success: true, isInWatchlist: found };
+  } catch (error) {
+    console.error('Error checking watchlist:', error);
     throw error;
   }
 };
