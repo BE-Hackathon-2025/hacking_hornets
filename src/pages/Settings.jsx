@@ -3,6 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { getUserDocument, updateUserDocument } from '../services/firestoreService';
 import toast from 'react-hot-toast';
 import Breadcrumb from '../components/Breadcrumbs/Breadcrumb';
+import AuthPrompt from '../components/AuthPrompt';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from "/Users/valerylouis/Documents/BeSmart2025/hacking_hornets/src/firebase/config.js"; // Adjust path to your firebase config
 
 const Settings = () => {
   const { currentUser } = useAuth();
@@ -13,6 +16,20 @@ const Settings = () => {
     email: '',
     phoneNumber: ''
   });
+
+  const [user, isloading] = useAuthState(auth);
+
+  if (isloading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-boxdark-2">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPrompt />;
+  }
 
   useEffect(() => {
     if (currentUser) {

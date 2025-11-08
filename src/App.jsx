@@ -22,6 +22,7 @@ import Portfolio from './pages/Portfolio/Portfolio';
 import Watchlist from './pages/Watchlist/Watchlist';
 import About from './pages/About/About';
 import DefaultLayout from './layout/DefaultLayout';
+import Home from './pages/Home/Home';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -223,6 +224,15 @@ function App() {
                 <Buttons />
               </DefaultLayout>
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <>
+              <PageTitle title="Calendar | Money Talks - AI-Powered Investment Portfolio" />
+              <Home/>
+            </>
           }
         />
       </Routes>
