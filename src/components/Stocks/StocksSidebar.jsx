@@ -129,7 +129,6 @@ const StocksSidebar = () => {
         <h3 className="font-semibold text-black dark:text-white">
           Stock Prices
         </h3>
-        <p className="text-xs text-bodydark mt-1">Real-time market data</p>
       </div>
 
       <div className="p-6">
