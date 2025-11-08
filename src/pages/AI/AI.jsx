@@ -14,15 +14,7 @@ const AI = () => {
   const { currentUser } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [currentConversation, setCurrentConversation] = useState(null);
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      text: "Hello! I'm your AI assistant. How can I help you today?",
-      sender: 'ai',
-      role: 'assistant',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -38,12 +30,13 @@ const AI = () => {
       const result = await getUserConversations(currentUser.uid);
       if (result.success) {
         setConversations(result.data);
-        if (result.data.length > 0) {
-          // Load the most recent conversation
+        if (result.data.length > 0 && !currentConversation) {
+          // Load the most recent conversation only if no conversation is current
           setCurrentConversation(result.data[0]);
           setMessages(result.data[0].messages.map((msg, idx) => ({
             ...msg,
             id: idx + 1,
+            text: msg.content,
             sender: msg.role === 'user' ? 'user' : 'ai',
             timestamp: msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           })));
@@ -62,35 +55,22 @@ const AI = () => {
       const result = await createConversation(currentUser.uid, title);
       
       if (result.success) {
-        // Reset messages to initial state
-        const initialMessages = [{
-          id: 1,
-          text: "Hello! I'm your AI assistant. How can I help you today?",
-          sender: 'ai',
-          role: 'assistant',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }];
-        
-        setMessages(initialMessages);
-        
-        // Add initial message to Firestore
-        await addMessage(currentUser.uid, result.conversationId, {
-          role: 'assistant',
-          content: initialMessages[0].text
-        });
-        
-        // Set the new conversation as current
+        // Set the new conversation as current with empty messages
         const newConversation = {
           id: result.conversationId,
           title: title,
-          messages: [{ role: 'assistant', content: initialMessages[0].text }]
+          messages: []
         };
         setCurrentConversation(newConversation);
+        setMessages([]);
         
-        // Reload conversations to get updated list
-        await loadConversations();
+        // Reload conversations list without changing current conversation
+        const convResult = await getUserConversations(currentUser.uid);
+        if (convResult.success) {
+          setConversations(convResult.data);
+        }
+        
         toast.success('New conversation started');
-        
         return result.conversationId;
       }
     } catch (error) {
@@ -136,10 +116,12 @@ const AI = () => {
       setMessages(prev => [...prev, userMessage]);
 
       // Save user message to Firestore
+      console.log('Saving user message to conversation:', conversationId);
       await addMessage(currentUser.uid, conversationId, {
         role: 'user',
         content: userInput
       });
+      console.log('User message saved successfully');
 
       // Simulate AI response after a short delay
       setTimeout(async () => {
@@ -154,10 +136,12 @@ const AI = () => {
         setMessages(prev => [...prev, aiMessage]);
         
         // Save AI message to Firestore
+        console.log('Saving AI response to conversation:', conversationId);
         await addMessage(currentUser.uid, conversationId, {
           role: 'assistant',
           content: aiMessage.text
         });
+        console.log('AI response saved successfully');
         
         setLoading(false);
       }, 1000);
@@ -177,13 +161,7 @@ const AI = () => {
       // If deleted conversation was current, reset
       if (currentConversation?.id === conversationId) {
         setCurrentConversation(null);
-        setMessages([{
-          id: 1,
-          text: "Hello! I'm your AI assistant. How can I help you today?",
-          sender: 'ai',
-          role: 'assistant',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }]);
+        setMessages([]);
       }
     } catch (error) {
       console.error('Error deleting conversation:', error);

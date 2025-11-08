@@ -17,6 +17,7 @@ const Portfolio = () => {
   const [portfolios, setPortfolios] = useState([]);
   const [currentPortfolio, setCurrentPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(false);
 
   // Fetch portfolios on component mount
   useEffect(() => {
@@ -32,8 +33,8 @@ const Portfolio = () => {
       if (result.success && result.data.length > 0) {
         setPortfolios(result.data);
         setCurrentPortfolio(result.data[0]); // Set first portfolio as current
-      } else {
-        // Create initial portfolio if none exists
+      } else if (!isInitializing) {
+        // Create initial portfolio if none exists and not already initializing
         await initializePortfolio();
       }
     } catch (error) {
@@ -45,7 +46,25 @@ const Portfolio = () => {
   };
 
   const initializePortfolio = async () => {
+    // Prevent duplicate initialization
+    if (isInitializing) {
+      console.log('Portfolio initialization already in progress, skipping...');
+      return;
+    }
+    
     try {
+      setIsInitializing(true);
+      console.log('Starting portfolio initialization...');
+      
+      // Double-check if a portfolio was created while we were waiting
+      const checkResult = await getUserPortfolios(currentUser.uid);
+      if (checkResult.success && checkResult.data.length > 0) {
+        console.log('Portfolio already exists, skipping initialization');
+        setPortfolios(checkResult.data);
+        setCurrentPortfolio(checkResult.data[0]);
+        return;
+      }
+      
       const initialData = {
         name: 'Main Portfolio',
         holdings: [
@@ -65,12 +84,15 @@ const Portfolio = () => {
       
       const result = await createPortfolio(currentUser.uid, initialData);
       if (result.success) {
-        fetchPortfolios();
+        console.log('Portfolio created successfully');
+        await fetchPortfolios();
         toast.success('Portfolio initialized successfully');
       }
     } catch (error) {
       console.error('Error initializing portfolio:', error);
       toast.error('Failed to initialize portfolio');
+    } finally {
+      setIsInitializing(false);
     }
   };
 

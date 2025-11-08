@@ -9,7 +9,8 @@ import {
   orderBy, 
   getDocs,
   deleteDoc,
-  serverTimestamp 
+  serverTimestamp,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -316,20 +317,21 @@ export const getConversation = async (userId, conversationId) => {
 export const addMessage = async (userId, conversationId, message) => {
   try {
     const conversationRef = doc(db, 'users', userId, 'conversations', conversationId);
-    const conversationSnap = await getDoc(conversationRef);
     
-    if (conversationSnap.exists()) {
-      const currentMessages = conversationSnap.data().messages || [];
-      await updateDoc(conversationRef, {
-        messages: [...currentMessages, { ...message, timestamp: serverTimestamp() }],
-        updatedAt: serverTimestamp()
-      });
-      return { success: true };
-    } else {
-      return { success: false, message: 'Conversation not found' };
-    }
+    // Use arrayUnion to append the message to the messages array
+    await updateDoc(conversationRef, {
+      messages: arrayUnion({ 
+        ...message, 
+        timestamp: new Date().toISOString() // Use ISO string for consistency
+      }),
+      updatedAt: serverTimestamp()
+    });
+    
+    console.log('Message added successfully to conversation:', conversationId);
+    return { success: true };
   } catch (error) {
     console.error('Error adding message:', error);
+    console.error('UserId:', userId, 'ConversationId:', conversationId);
     throw error;
   }
 };
