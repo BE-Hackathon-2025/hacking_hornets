@@ -6,13 +6,19 @@ from dotenv import load_dotenv
 import yfinance as yf
 import chromadb
 
+# Load environment variables
+load_dotenv()
+
 def stock_finder(query: str):
     @Tool
     def pick_best_stock(query: str = Field(description="words related to the query that would categorize its stock description")) -> str:
         """
         Picks the best stocks based on the user's query by querying the collection.
         """
-        client = chromadb.PersistentClient(path="/Users/mannyfowler/Desktop/besmart code/chroma_db")  # Use the same path as when you created it
+        # Use relative path from current file location
+        current_dir = os.path.dirname(__file__)
+        db_path = os.path.join(current_dir, "chroma_db")
+        client = chromadb.PersistentClient(path=db_path)
         collection = client.get_collection("test_collection2")
         q_results = collection.query(
             query_texts=[query], 

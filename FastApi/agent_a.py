@@ -52,7 +52,7 @@ def stock_search(query: str = Field(description="words related to the query that
     """
     Picks the best stocks based on the user's query by searching through a database of stock symbols and descriptions.
     """
-    client = chromadb.PersistentClient(path="/Users/mannyfowler/Desktop/besmart code/chroma_db")  # Use the same path as when you created it
+    client = chromadb.PersistentClient(path="/FastApi/stock_picker/chroma_db")  # Use the same path as when you created it
     collection = client.get_collection("test_collection2")
     q_results = collection.query(
         query_texts=[query], 

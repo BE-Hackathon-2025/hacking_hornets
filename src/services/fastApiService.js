@@ -16,8 +16,11 @@ export const callStockFinder = async (query) => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    const data = await response.json();
-    return { success: true, data };
+    // The API returns plain text, not JSON
+    const data = await response.text();
+    // Remove quotes if the response is wrapped in quotes
+    const cleanData = data.replace(/^"|"$/g, '');
+    return { success: true, data: cleanData };
   } catch (error) {
     console.error('Error calling stock finder:', error);
     return { success: false, error: error.message };

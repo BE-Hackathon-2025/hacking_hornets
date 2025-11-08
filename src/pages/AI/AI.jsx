@@ -6,6 +6,7 @@ import {
   addMessage,
   deleteConversation
 } from '../../services/firestoreService';
+import { callStockFinder } from '../../services/fastApiService';
 import toast from 'react-hot-toast';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import StocksSidebar from '../../components/Stocks/StocksSidebar';
@@ -155,28 +156,74 @@ const AI = () => {
       });
       console.log('User message saved successfully');
 
-      // Simulate AI response after a short delay
-      setTimeout(async () => {
-        const aiMessage = {
-          id: messages.length + 2,
-          text: "Thank you for your message! This is a demo AI response. In a real application, this would be connected to an AI service like OpenAI or Google Gemini.",
-          sender: 'ai',
-          role: 'assistant',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        
-        setMessages(prev => [...prev, aiMessage]);
-        
-        // Save AI message to Firestore
-        console.log('Saving AI response to conversation:', conversationId);
-        await addMessage(currentUser.uid, conversationId, {
-          role: 'assistant',
-          content: aiMessage.text
-        });
-        console.log('AI response saved successfully');
-        
-        setLoading(false);
-      }, 1000);
+      // Check if the query is stock-related
+      const isStockQuery = /stock|recommend|portfolio|invest|buy|trade|market|ticker|symbol/i.test(userInput);
+
+      if (isStockQuery) {
+        // Call the FastAPI stock_finder endpoint
+        try {
+          const result = await callStockFinder(userInput);
+          
+          let aiResponseText;
+          if (result.success) {
+            aiResponseText = result.data || "I found some stocks for you, but couldn't format the response properly.";
+          } else {
+            aiResponseText = "I'm sorry, I encountered an error while searching for stocks. Please make sure the backend server is running and try again.";
+          }
+
+          const aiMessage = {
+            id: messages.length + 2,
+            text: aiResponseText,
+            sender: 'ai',
+            role: 'assistant',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          
+          setMessages(prev => [...prev, aiMessage]);
+          
+          // Save AI message to Firestore
+          await addMessage(currentUser.uid, conversationId, {
+            role: 'assistant',
+            content: aiMessage.text
+          });
+          
+          setLoading(false);
+        } catch (error) {
+          console.error('Error calling stock finder:', error);
+          const errorMessage = {
+            id: messages.length + 2,
+            text: "I'm sorry, I couldn't connect to the stock recommendation service. Please make sure the backend is running on http://localhost:8000",
+            sender: 'ai',
+            role: 'assistant',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setMessages(prev => [...prev, errorMessage]);
+          setLoading(false);
+        }
+      } else {
+        // For non-stock queries, use the default AI response
+        setTimeout(async () => {
+          const aiMessage = {
+            id: messages.length + 2,
+            text: "Thank you for your message! I'm specialized in stock recommendations. Try asking me about stocks, investments, or market recommendations!",
+            sender: 'ai',
+            role: 'assistant',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          
+          setMessages(prev => [...prev, aiMessage]);
+          
+          // Save AI message to Firestore
+          console.log('Saving AI response to conversation:', conversationId);
+          await addMessage(currentUser.uid, conversationId, {
+            role: 'assistant',
+            content: aiMessage.text
+          });
+          console.log('AI response saved successfully');
+          
+          setLoading(false);
+        }, 1000);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
