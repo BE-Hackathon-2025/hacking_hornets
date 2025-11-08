@@ -31,8 +31,11 @@ const Portfolio = () => {
   const [cashAvailable, setCashAvailable] = useState(0);
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [showAddStockModal, setShowAddStockModal] = useState(false);
+  const [showSellModal, setShowSellModal] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
   const [sharesToBuy, setSharesToBuy] = useState('');
+  const [sharesToSell, setSharesToSell] = useState('');
+  const [sellPrice, setSellPrice] = useState('');
   const [newStockSymbol, setNewStockSymbol] = useState('');
   const [newStockShares, setNewStockShares] = useState('');
 
@@ -272,6 +275,13 @@ const Portfolio = () => {
     setShowBuyModal(true);
   };
 
+  const handleSellShares = (holding) => {
+    setSelectedStock(holding);
+    setSharesToSell('');
+    setSellPrice(stockPrices[holding.symbol]?.toFixed(2) || '');
+    setShowSellModal(true);
+  };
+
   const handleConfirmBuy = async () => {
     const shares = parseInt(sharesToBuy);
     if (isNaN(shares) || shares <= 0) {
@@ -312,6 +322,75 @@ const Portfolio = () => {
     } catch (error) {
       console.error('Error buying shares:', error);
       toast.error('Failed to buy shares');
+    }
+  };
+
+  const handleConfirmSell = async () => {
+    const shares = parseInt(sharesToSell);
+    const price = parseFloat(sellPrice);
+    
+    if (isNaN(shares) || shares <= 0) {
+      toast.error('Please enter a valid number of shares');
+      return;
+    }
+
+    if (isNaN(price) || price <= 0) {
+      toast.error('Please enter a valid sell price');
+      return;
+    }
+
+    if (shares > selectedStock.shares) {
+      toast.error(`You only have ${selectedStock.shares} shares of ${selectedStock.symbol}`);
+      return;
+    }
+
+    try {
+      const totalProceeds = shares * price;
+      const today = new Date().toISOString().split('T')[0];
+
+      // Add SELL transaction
+      await addTransaction(currentUser.uid, currentPortfolio.id, {
+        symbol: selectedStock.symbol,
+        shares: shares,
+        price: price,
+        type: 'SELL',
+        date: today
+      });
+
+      // Update cash
+      const newCash = cashAvailable + totalProceeds;
+      const cashResult = await getUserCash(currentUser.uid);
+      if (cashResult.success) {
+        await updatePortfolio(currentUser.uid, currentPortfolio.id, {
+          lastUpdated: Date.now()
+        });
+      }
+
+      // Update holdings
+      const newShareCount = selectedStock.shares - shares;
+      if (newShareCount === 0) {
+        // Remove holding completely
+        await removeHolding(currentUser.uid, currentPortfolio.id, selectedStock.symbol);
+      } else {
+        // Update holding with new share count
+        const updatedHoldings = currentPortfolio.holdings.map(h => 
+          h.symbol === selectedStock.symbol 
+            ? { ...h, shares: newShareCount }
+            : h
+        );
+        await updatePortfolio(currentUser.uid, currentPortfolio.id, {
+          holdings: updatedHoldings,
+          lastUpdated: Date.now()
+        });
+      }
+
+      toast.success(`Sold ${shares} shares of ${selectedStock.symbol} for $${totalProceeds.toFixed(2)}`);
+      setCashAvailable(newCash);
+      setShowSellModal(false);
+      await fetchPortfolios();
+    } catch (error) {
+      console.error('Error selling shares:', error);
+      toast.error('Failed to sell shares');
     }
   };
 
@@ -704,6 +783,25 @@ const Portfolio = () => {
                       <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           <div className="flex items-center space-x-3.5">
                             <button 
+                              className="hover:text-success"
+                              onClick={() => handleSellShares(holding)}
+                              title={`Sell ${holding.symbol}`}
+                            >
+                              <svg
+                                className="fill-current"
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M11.8 10.9C9.53 10.31 8.8 9.7 8.8 8.75C8.8 7.66 9.81 6.9 11.5 6.9C13.28 6.9 13.94 7.75 14 9H16.21C16.14 7.28 15.09 5.7 13 5.19V3H10V5.16C8.06 5.58 6.5 6.84 6.5 8.77C6.5 11.08 8.41 12.23 11.2 12.9C13.7 13.5 14.2 14.38 14.2 15.31C14.2 16 13.71 17.1 11.5 17.1C9.44 17.1 8.63 16.18 8.52 15H6.32C6.44 17.19 8.08 18.42 10 18.83V21H13V18.85C14.95 18.48 16.5 17.35 16.5 15.3C16.5 12.46 14.07 11.49 11.8 10.9Z"
+                                  fill=""
+                                />
+                              </svg>
+                            </button>
+                            <button 
                               className="hover:text-primary"
                               onClick={() => handleBuyMoreShares(holding)}
                               title={`Buy more ${holding.symbol}`}
@@ -873,6 +971,68 @@ const Portfolio = () => {
                 className="rounded bg-primary py-2 px-6 font-medium text-white hover:bg-opacity-90"
               >
                 Buy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sell Shares Modal */}
+      {showSellModal && (
+        <div className="fixed inset-0 z-999 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-boxdark">
+            <h3 className="mb-4 text-xl font-semibold text-black dark:text-white">
+              Sell Shares of {selectedStock?.symbol}
+            </h3>
+            <p className="mb-4 text-sm text-body">
+              Current Price: ${stockPrices[selectedStock?.symbol]?.toFixed(2) || 'Loading...'}
+            </p>
+            <p className="mb-4 text-sm text-body">
+              Shares Available: {selectedStock?.shares}
+            </p>
+            <div className="mb-4">
+              <label className="mb-2.5 block font-medium text-black dark:text-white">
+                Number of Shares to Sell
+              </label>
+              <input
+                type="number"
+                value={sharesToSell}
+                onChange={(e) => setSharesToSell(e.target.value)}
+                placeholder="Enter number of shares"
+                max={selectedStock?.shares}
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="mb-2.5 block font-medium text-black dark:text-white">
+                Sell Price per Share
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={sellPrice}
+                onChange={(e) => setSellPrice(e.target.value)}
+                placeholder="Enter sell price"
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+              {sharesToSell && sellPrice && (
+                <p className="mt-2 text-sm text-success">
+                  Total Proceeds: ${(parseInt(sharesToSell) * parseFloat(sellPrice)).toFixed(2)}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowSellModal(false)}
+                className="rounded border border-stroke py-2 px-6 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSell}
+                className="rounded bg-success py-2 px-6 font-medium text-white hover:bg-opacity-90"
+              >
+                Sell
               </button>
             </div>
           </div>
