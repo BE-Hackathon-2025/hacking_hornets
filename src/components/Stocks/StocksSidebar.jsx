@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const POLYGON_API_KEY = 'pMTIriBrr2ALC3sPQYbW8PBnPvHnqUdv';
+const POLYGON_API_KEY = import.meta.env.VITE_POLYGON_API_KEY;
 
 const StocksSidebar = () => {
   const [stocksData, setStocksData] = useState([]);

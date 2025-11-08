@@ -1,21 +1,94 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 const SignUp = () => {
+  const navigate = useNavigate();
+  const { signup, signInWithGoogle } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
 
-  const navigate = useNavigate()
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await signup(formData.email, formData.password, formData.name);
+      toast.success('Account created successfully!');
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Signup error:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error('Email already in use');
+      } else if (error.code === 'auth/invalid-email') {
+        toast.error('Invalid email address');
+      } else if (error.code === 'auth/weak-password') {
+        toast.error('Password is too weak');
+      } else {
+        toast.error('Failed to create account. Please try again');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    try {
+      setLoading(true);
+      await signInWithGoogle();
+      toast.success('Successfully signed up with Google!');
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Google sign-up error:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        toast.error('Sign-up cancelled');
+      } else {
+        toast.error('Failed to sign up with Google');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <>
-      <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-boxdark-2 py-8">
+      <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark w-full max-w-7xl mx-4">
         <div className="flex flex-wrap items-center">
           <div className="hidden w-full xl:block xl:w-1/2">
             <div className="py-17.5 px-26 text-center">
               <Link className="mb-5.5 inline-block" to="/">
-                <div className='text-2xl font-bold text-black dark:text-white'>Reactwind</div>
+                <div className='text-2xl font-bold text-black dark:text-white'>Money Talks</div>
               </Link>
               <p className="2xl:px-20">
-                A simple and lightweight open-source Admin Dashboard Template built on React and Tailwind CSS.
+                AI-powered investment portfolio management with real-time stock tracking and market insights.
               </p>
 
               <span className="mt-15 inline-block">
@@ -150,7 +223,7 @@ const SignUp = () => {
                 Sign Up
               </h2>
 
-              <form onSubmit={() => navigate('/dashboard')}>
+              <form onSubmit={handleSubmit}>
                 <div className="mb-4">
                   <label className="mb-2.5 block font-medium text-black dark:text-white">
                     Name
@@ -158,8 +231,12 @@ const SignUp = () => {
                   <div className="relative">
                     <input
                       type="text"
+                      name="name"
                       placeholder="Enter your full name"
-                      className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                      value={formData.name}
+                      onChange={handleChange}
+                      disabled={loading}
+                      className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary disabled:opacity-50"
                     />
 
                     <span className="absolute right-4 top-4">
@@ -193,9 +270,13 @@ const SignUp = () => {
                   <div className="relative">
                     <input
                       type="email"
+                      name="email"
                       placeholder="Enter your email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      disabled={loading}
                       autoComplete='new-password'
-                      className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                      className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary disabled:opacity-50"
                     />
 
                     <span className="absolute right-4 top-4">
@@ -225,9 +306,13 @@ const SignUp = () => {
                   <div className="relative">
                     <input
                       type="password"
+                      name="password"
                       placeholder="Enter your password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      disabled={loading}
                       autoComplete='new-password'
-                      className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                      className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary disabled:opacity-50"
                     />
 
                     <span className="absolute right-4 top-4">
@@ -261,8 +346,12 @@ const SignUp = () => {
                   <div className="relative">
                     <input
                       type="password"
+                      name="confirmPassword"
                       placeholder="Re-enter your password"
-                      className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      disabled={loading}
+                      className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary disabled:opacity-50"
                     />
 
                     <span className="absolute right-4 top-4">
@@ -292,12 +381,18 @@ const SignUp = () => {
                 <div className="mb-5">
                   <input
                     type="submit"
-                    value="Create account"
-                    className="w-full cursor-pointer rounded-lg border border-primary bg-primary p-4 text-white transition hover:bg-opacity-90"
+                    value={loading ? "Creating account..." : "Create account"}
+                    disabled={loading}
+                    className="w-full cursor-pointer rounded-lg border border-primary bg-primary p-4 text-white transition hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
 
-                <button className="flex w-full items-center justify-center gap-3.5 rounded-lg border border-stroke bg-gray p-4 hover:bg-opacity-50 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-opacity-50">
+                <button 
+                  type="button"
+                  onClick={handleGoogleSignUp}
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-3.5 rounded-lg border border-stroke bg-gray p-4 hover:bg-opacity-50 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <span>
                     <svg
                       width="20"
@@ -337,7 +432,7 @@ const SignUp = () => {
                 <div className="mt-6 text-center">
                   <p>
                     Already have an account?{' '}
-                    <Link to="/login" className="text-primary">
+                    <Link to="/signin" className="text-primary">
                       Sign in
                     </Link>
                   </p>
@@ -347,7 +442,7 @@ const SignUp = () => {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

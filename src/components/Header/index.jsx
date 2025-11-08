@@ -7,7 +7,7 @@ import DarkModeSwitcher from './DarkModeSwitcher';
 const Header = (props) => {
   return (
   <header className="sticky top-0 z-999 flex w-full justify-end bg-transparent mt-5">
-    <div className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-boxdark shadow-md rounded-full border border-gray-200 dark:border-strokedark w-fit">
+    <div className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-boxdark shadow-md rounded-full border border-gray-200 dark:border-strokedark w-fit mr-6">
         <div className="flex items-center gap-2 sm:gap-4 lg:hidden">
           {/* <!-- Hamburger Toggle BTN --> */}
           <button

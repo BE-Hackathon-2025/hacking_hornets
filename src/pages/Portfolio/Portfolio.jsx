@@ -1,30 +1,194 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { 
+  getUserPortfolios, 
+  createPortfolio, 
+  updatePortfolio,
+  addHolding,
+  addTransaction 
+} from '../../services/firestoreService';
+import toast from 'react-hot-toast';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import CardDataStats from '../../components/CardDataStats';
+import AuthPrompt from '../../components/AuthPrompt';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from "/Users/valerylouis/Documents/BeSmart2025/hacking_hornets/src/firebase/config.js"; // Adjust path to your firebase config
 
 const Portfolio = () => {
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('holdings');
+  const [portfolios, setPortfolios] = useState([]);
+  const [currentPortfolio, setCurrentPortfolio] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(false);
 
-  // Mock holdings data
-  const holdings = [
-    { symbol: 'AAPL', name: 'Apple Inc.', shares: 50, avgPrice: 150.50, currentPrice: 178.25, value: 8912.50 },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', shares: 25, avgPrice: 120.00, currentPrice: 142.80, value: 3570.00 },
-    { symbol: 'MSFT', name: 'Microsoft Corp.', shares: 40, avgPrice: 310.00, currentPrice: 378.91, value: 15156.40 },
-    { symbol: 'TSLA', name: 'Tesla Inc.', shares: 15, avgPrice: 220.00, currentPrice: 242.84, value: 3642.60 },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', shares: 30, avgPrice: 135.00, currentPrice: 178.35, value: 5350.50 },
-  ];
+  const [user, isloading] = useAuthState(auth);
 
-  const transactions = [
-    { date: '2025-11-05', type: 'BUY', symbol: 'AAPL', shares: 10, price: 178.25, total: 1782.50 },
-    { date: '2025-11-03', type: 'SELL', symbol: 'TSLA', shares: 5, price: 242.84, total: 1214.20 },
-    { date: '2025-10-28', type: 'BUY', symbol: 'MSFT', shares: 15, price: 378.91, total: 5683.65 },
-    { date: '2025-10-25', type: 'BUY', symbol: 'GOOGL', shares: 10, price: 142.80, total: 1428.00 },
-  ];
+  if (isloading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-boxdark-2">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
-  const totalValue = holdings.reduce((sum, holding) => sum + holding.value, 0);
-  const totalCost = holdings.reduce((sum, holding) => sum + (holding.shares * holding.avgPrice), 0);
+  if (!user) {
+    return <AuthPrompt />;
+  }
+
+  // Fetch portfolios on component mount
+  useEffect(() => {
+    if (currentUser) {
+      fetchPortfolios();
+    }
+  }, [currentUser]);
+
+  const fetchPortfolios = async () => {
+    try {
+      setLoading(true);
+      const result = await getUserPortfolios(currentUser.uid);
+      if (result.success && result.data.length > 0) {
+        setPortfolios(result.data);
+        setCurrentPortfolio(result.data[0]); // Set first portfolio as current
+      } else if (!isInitializing) {
+        // Create initial portfolio if none exists and not already initializing
+        await initializePortfolio();
+      }
+    } catch (error) {
+      console.error('Error fetching portfolios:', error);
+      toast.error('Failed to load portfolios');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const initializePortfolio = async () => {
+    // Prevent duplicate initialization
+    if (isInitializing) {
+      console.log('Portfolio initialization already in progress, skipping...');
+      return;
+    }
+    
+    try {
+      setIsInitializing(true);
+      console.log('Starting portfolio initialization...');
+      
+      // Double-check if a portfolio was created while we were waiting
+      const checkResult = await getUserPortfolios(currentUser.uid);
+      if (checkResult.success && checkResult.data.length > 0) {
+        console.log('Portfolio already exists, skipping initialization');
+        setPortfolios(checkResult.data);
+        setCurrentPortfolio(checkResult.data[0]);
+        return;
+      }
+      
+      const initialData = {
+        name: 'Main Portfolio',
+        holdings: [
+          { symbol: 'AAPL', name: 'Apple Inc.', shares: 50 },
+          { symbol: 'GOOGL', name: 'Alphabet Inc.', shares: 25 },
+          { symbol: 'MSFT', name: 'Microsoft Corp.', shares: 40 },
+          { symbol: 'TSLA', name: 'Tesla Inc.', shares: 15 },
+          { symbol: 'AMZN', name: 'Amazon.com Inc.', shares: 30 },
+        ],
+        transactions: [
+          { date: '2025-11-05', type: 'BUY', symbol: 'AAPL', shares: 10, price: 178.25, total: 1782.50 },
+          { date: '2025-11-03', type: 'SELL', symbol: 'TSLA', shares: 5, price: 242.84, total: 1214.20 },
+          { date: '2025-10-28', type: 'BUY', symbol: 'MSFT', shares: 15, price: 378.91, total: 5683.65 },
+          { date: '2025-10-25', type: 'BUY', symbol: 'GOOGL', shares: 10, price: 142.80, total: 1428.00 },
+        ]
+      };
+      
+      const result = await createPortfolio(currentUser.uid, initialData);
+      if (result.success) {
+        console.log('Portfolio created successfully');
+        await fetchPortfolios();
+        toast.success('Portfolio initialized successfully');
+      }
+    } catch (error) {
+      console.error('Error initializing portfolio:', error);
+      toast.error('Failed to initialize portfolio');
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!currentPortfolio) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-xl mb-4">No portfolio found</p>
+          <button 
+            onClick={initializePortfolio}
+            className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-opacity-90"
+          >
+            Create Portfolio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const holdings = currentPortfolio.holdings || [];
+  const transactions = currentPortfolio.transactions || [];
+
+  // Helper function to calculate average price from transactions
+  const calculateAvgPrice = (symbol) => {
+    const symbolTransactions = transactions.filter(t => t.symbol === symbol);
+    if (symbolTransactions.length === 0) return 0;
+    
+    let totalCost = 0;
+    let totalShares = 0;
+    
+    symbolTransactions.forEach(t => {
+      if (t.type === 'BUY') {
+        totalCost += t.total;
+        totalShares += t.shares;
+      }
+    });
+    
+    return totalShares > 0 ? totalCost / totalShares : 0;
+  };
+
+  // Mock function to get current price (in real app, would fetch from API)
+  const getCurrentPrice = (symbol) => {
+    // Mock prices - in production, fetch from a real API
+    const mockPrices = {
+      'AAPL': 178.25,
+      'GOOGL': 142.80,
+      'MSFT': 378.91,
+      'TSLA': 242.84,
+      'AMZN': 178.35
+    };
+    return mockPrices[symbol] || 0;
+  };
+
+  // Calculate enriched holdings with dynamic values
+  const enrichedHoldings = holdings.map(holding => {
+    const avgPrice = calculateAvgPrice(holding.symbol);
+    const currentPrice = getCurrentPrice(holding.symbol);
+    const value = holding.shares * currentPrice;
+    
+    return {
+      ...holding,
+      avgPrice,
+      currentPrice,
+      value
+    };
+  });
+
+  const totalValue = enrichedHoldings.reduce((sum, holding) => sum + holding.value, 0);
+  const totalCost = enrichedHoldings.reduce((sum, holding) => sum + (holding.shares * holding.avgPrice), 0);
   const totalGain = totalValue - totalCost;
-  const totalGainPercent = ((totalGain / totalCost) * 100).toFixed(2);
+  const totalGainPercent = totalCost > 0 ? ((totalGain / totalCost) * 100).toFixed(2) : '0.00';
 
   return (
     <>
@@ -123,44 +287,6 @@ const Portfolio = () => {
       <div className="mt-4 md:mt-6 2xl:mt-7.5">
         <div className="mb-6 flex flex-wrap gap-5 border-b border-stroke dark:border-strokedark">
           <button
-            onClick={() => setActiveTab('about')}
-            className={`inline-flex items-center justify-center rounded-t-lg border-b-2 py-4 px-5 text-sm font-medium ${
-              activeTab === 'about'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-body hover:text-primary dark:text-bodydark'
-            }`}
-          >
-            <svg
-              className="fill-current mr-2"
-              width="18"
-              height="18"
-              viewBox="0 0 18 18"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <g clipPath="url(#clip0)">
-                <path
-                  d="M9.0002 0.506348C4.1127 0.506348 0.112695 4.50635 0.112695 9.39385C0.112695 14.2814 4.1127 18.2814 9.0002 18.2814C13.8877 18.2814 17.8877 14.2814 17.8877 9.39385C17.8877 4.50635 13.8877 0.506348 9.0002 0.506348ZM9.0002 16.7939C4.94395 16.7939 1.6252 13.4751 1.6252 9.41885C1.6252 5.3626 4.94395 2.04385 9.0002 2.04385C13.0565 2.04385 16.3752 5.3626 16.3752 9.41885C16.3752 13.4751 13.0565 16.7939 9.0002 16.7939Z"
-                  fill=""
-                />
-                <path
-                  d="M9.28145 4.8501C8.7377 4.8501 8.2502 5.3376 8.2502 5.8251C8.2502 6.3126 8.68145 6.8001 9.22520 6.8001C9.76895 6.8001 10.2002 6.3126 10.2002 5.8251C10.2002 5.3376 9.76895 4.8501 9.28145 4.8501Z"
-                  fill=""
-                />
-                <path
-                  d="M9.84395 8.11885H8.2502C7.9127 8.11885 7.6877 8.3726 7.6877 8.6826V13.7064C7.6877 14.0439 7.94145 14.2689 8.2502 14.2689H9.84395C10.1814 14.2689 10.4065 14.0151 10.4065 13.7064V8.6826C10.4065 8.3726 10.1814 8.11885 9.84395 8.11885Z"
-                  fill=""
-                />
-              </g>
-              <defs>
-                <clipPath id="clip0">
-                  <rect width="18" height="18" fill="white" transform="translate(0 0.052124)" />
-                </clipPath>
-              </defs>
-            </svg>
-            About
-          </button>
-          <button
             onClick={() => setActiveTab('holdings')}
             className={`inline-flex items-center justify-center rounded-t-lg border-b-2 py-4 px-5 text-sm font-medium ${
               activeTab === 'holdings'
@@ -208,171 +334,6 @@ const Portfolio = () => {
           </button>
         </div>
 
-        {/* About Tab */}
-        {activeTab === 'about' && (
-          <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-            <div className="border-b border-stroke py-6 px-7.5 dark:border-strokedark">
-              <h3 className="text-2xl font-semibold text-black dark:text-white">
-                About Money Talks
-              </h3>
-              <p className="mt-2 text-bodydark">
-                Your intelligent AI-powered investment portfolio management platform
-              </p>
-            </div>
-
-            <div className="p-7.5">
-              <div className="mb-10">
-                <h4 className="mb-4 text-xl font-semibold text-black dark:text-white">
-                  How It Works
-                </h4>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {/* Step 1 */}
-                  <div className="rounded-lg border border-stroke bg-gray p-6 dark:border-strokedark dark:bg-meta-4">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary">
-                      <span className="text-xl font-bold text-white">1</span>
-                    </div>
-                    <h5 className="mb-3 text-lg font-semibold text-black dark:text-white">
-                      Connect Your Portfolio
-                    </h5>
-                    <p className="text-sm text-bodydark">
-                      Link your brokerage accounts or manually input your holdings. Money Talks securely syncs with major brokers to provide real-time portfolio tracking.
-                    </p>
-                  </div>
-
-                  {/* Step 2 */}
-                  <div className="rounded-lg border border-stroke bg-gray p-6 dark:border-strokedark dark:bg-meta-4">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary">
-                      <span className="text-xl font-bold text-white">2</span>
-                    </div>
-                    <h5 className="mb-3 text-lg font-semibold text-black dark:text-white">
-                      AI Market Analysis
-                    </h5>
-                    <p className="text-sm text-bodydark">
-                      Our AI assistant analyzes market trends, company financials, and news sentiment to provide personalized investment insights and recommendations.
-                    </p>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div className="rounded-lg border border-stroke bg-gray p-6 dark:border-strokedark dark:bg-meta-4">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary">
-                      <span className="text-xl font-bold text-white">3</span>
-                    </div>
-                    <h5 className="mb-3 text-lg font-semibold text-black dark:text-white">
-                      Smart Decisions
-                    </h5>
-                    <p className="text-sm text-bodydark">
-                      Chat with our AI to get instant answers about your investments, receive alerts on portfolio changes, and make informed trading decisions.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-10">
-                <h4 className="mb-4 text-xl font-semibold text-black dark:text-white">
-                  Key Features
-                </h4>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success bg-opacity-10">
-                      <svg className="fill-success" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h5 className="font-semibold text-black dark:text-white">Real-Time Stock Tracking</h5>
-                      <p className="text-sm text-bodydark">Monitor your holdings with live market data from major exchanges</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success bg-opacity-10">
-                      <svg className="fill-success" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h5 className="font-semibold text-black dark:text-white">AI-Powered Insights</h5>
-                      <p className="text-sm text-bodydark">Get personalized recommendations based on your risk profile and goals</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success bg-opacity-10">
-                      <svg className="fill-success" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h5 className="font-semibold text-black dark:text-white">Performance Analytics</h5>
-                      <p className="text-sm text-bodydark">Track gains, losses, and portfolio performance over time</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success bg-opacity-10">
-                      <svg className="fill-success" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h5 className="font-semibold text-black dark:text-white">Transaction History</h5>
-                      <p className="text-sm text-bodydark">Complete record of all your buys, sells, and portfolio changes</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success bg-opacity-10">
-                      <svg className="fill-success" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h5 className="font-semibold text-black dark:text-white">Chat with AI Assistant</h5>
-                      <p className="text-sm text-bodydark">Ask questions and get instant answers about market conditions and strategies</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success bg-opacity-10">
-                      <svg className="fill-success" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h5 className="font-semibold text-black dark:text-white">Secure & Private</h5>
-                      <p className="text-sm text-bodydark">Bank-level encryption ensures your financial data stays protected</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-primary bg-primary bg-opacity-5 p-6">
-                <h4 className="mb-3 text-xl font-semibold text-black dark:text-white">
-                  Getting Started
-                </h4>
-                <p className="mb-4 text-bodydark">
-                  Ready to take control of your investments? Start by exploring your portfolio in the Holdings tab, 
-                  check out recent transactions, or chat with our AI assistant to get personalized investment advice.
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={() => setActiveTab('holdings')}
-                    className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 font-medium text-white hover:bg-opacity-90"
-                  >
-                    View Holdings
-                  </button>
-                  <button
-                    onClick={() => window.location.href = '/ai'}
-                    className="inline-flex items-center justify-center rounded-lg border border-primary px-6 py-3 font-medium text-primary hover:bg-primary hover:text-white"
-                  >
-                    Chat with AI
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Holdings Table */}
         {activeTab === 'holdings' && (
           <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
@@ -413,9 +374,9 @@ const Portfolio = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {holdings.map((holding, index) => {
+                  {enrichedHoldings.map((holding, index) => {
                     const gainLoss = holding.value - (holding.shares * holding.avgPrice);
-                    const gainLossPercent = ((gainLoss / (holding.shares * holding.avgPrice)) * 100).toFixed(2);
+                    const gainLossPercent = holding.avgPrice > 0 ? ((gainLoss / (holding.shares * holding.avgPrice)) * 100).toFixed(2) : '0.00';
                     
                     return (
                       <tr key={index}>
