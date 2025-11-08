@@ -22,6 +22,7 @@ import Portfolio from './pages/Portfolio/Portfolio';
 import Watchlist from './pages/Watchlist/Watchlist';
 import About from './pages/About/About';
 import DefaultLayout from './layout/DefaultLayout';
+import Home from './pages/Home/Home';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -59,14 +60,13 @@ function App() {
             </>
           }
         />
-
-        {/* Protected Routes - Require Authentication */}
         <Route
-          path="/"
+          path="/home"
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <Navigate to="/dashboard" replace />
+                <PageTitle title="Home | Money Talks - AI-Powered Investment Portfolio" />
+                <Home />
               </DefaultLayout>
             </ProtectedRoute>
           }
@@ -221,6 +221,17 @@ function App() {
               <DefaultLayout>
                 <PageTitle title="Buttons | Money Talks - AI-Powered Investment Portfolio" />
                 <Buttons />
+              </DefaultLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Home | Money Talks - AI-Powered Investment Portfolio" />
+                <Home />
               </DefaultLayout>
             </ProtectedRoute>
           }
