@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCurrentStockPrices, getHistoricalStockPrice } from '../../services/stockDataService';
+import { cacheStockPrice } from '../../services/firestoreService';
 import { 
   getUserPortfolios, 
   createPortfolio, 
   updatePortfolio,
   addHolding,
-  addTransaction 
+  addTransaction,
+  removeHolding,
+  getUserCash,
+  buyShares as buySharesService
 } from '../../services/firestoreService';
 import toast from 'react-hot-toast';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
@@ -24,6 +28,13 @@ const Portfolio = () => {
   const [isInitializing, setIsInitializing] = useState(false);
   const [stockPrices, setStockPrices] = useState({});
   const [historicalPrices, setHistoricalPrices] = useState({});
+  const [cashAvailable, setCashAvailable] = useState(0);
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  const [showAddStockModal, setShowAddStockModal] = useState(false);
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [sharesToBuy, setSharesToBuy] = useState('');
+  const [newStockSymbol, setNewStockSymbol] = useState('');
+  const [newStockShares, setNewStockShares] = useState('');
 
   const [user, isloading] = useAuthState(auth);
 
@@ -43,6 +54,7 @@ const Portfolio = () => {
   useEffect(() => {
     if (currentUser) {
       fetchPortfolios();
+      fetchCash();
     }
   }, [currentUser]);
 
@@ -50,32 +62,42 @@ const Portfolio = () => {
   useEffect(() => {
     if (currentPortfolio && currentPortfolio.holdings) {
       fetchStockPrices();
+      
+      // Set up background refresh after 1 minute
+      const refreshTimer = setTimeout(() => {
+        console.log('Background refresh: Updating stock prices after 1 minute');
+        fetchStockPrices(true); // Force refresh
+      }, 60000); // 60 seconds
+      
+      return () => clearTimeout(refreshTimer);
     }
   }, [currentPortfolio]);
 
+  // Fetch user's cash balance
+  const fetchCash = async () => {
+    try {
+      const result = await getUserCash(currentUser.uid);
+      if (result.success) {
+        setCashAvailable(result.cashAvailable);
+      }
+    } catch (error) {
+      console.error('Error fetching cash:', error);
+    }
+  };
+
   // Fetch real-time stock prices from Polygon API (with caching)
-  const fetchStockPrices = async () => {
+  const fetchStockPrices = async (forceRefresh = false) => {
     try {
       const symbols = currentPortfolio.holdings.map(h => h.symbol);
       const transactions = currentPortfolio.transactions || [];
 
-      // Fetch current prices (with caching)
-      const currentPricesResult = await getCurrentStockPrices(currentUser.uid, symbols);
-      
-      if (currentPricesResult.success) {
-        const prices = {};
-        Object.entries(currentPricesResult.data).forEach(([symbol, data]) => {
-          prices[symbol] = data.price;
-        });
-        setStockPrices(prices);
-      }
-
-      // Fetch historical prices for transaction dates (with caching)
+      // Fetch historical prices for transaction dates FIRST (with caching)
       const historicalPromises = transactions.map(async (transaction) => {
         const result = await getHistoricalStockPrice(
           currentUser.uid,
           transaction.symbol,
-          transaction.date
+          transaction.date,
+          forceRefresh
         );
         
         if (result.success) {
@@ -97,6 +119,57 @@ const Portfolio = () => {
         histPrices[key] = price;
       });
       setHistoricalPrices(histPrices);
+
+      // Then fetch current prices (cache first, then API if needed)
+      const currentPricesResult = await getCurrentStockPrices(currentUser.uid, symbols, forceRefresh);
+      
+      if (currentPricesResult.success) {
+        const prices = {};
+        Object.entries(currentPricesResult.data).forEach(([symbol, data]) => {
+          prices[symbol] = data.price;
+        });
+        setStockPrices(prices);
+
+        // Calculate and cache gain/loss for each holding ONLY when we have both prices
+        const holdings = currentPortfolio.holdings || [];
+        
+        // Use Promise.all to cache all holdings in parallel (much faster)
+        await Promise.all(holdings.map(async (holding) => {
+          // Calculate average price from transactions using the fetched historical prices
+          const symbolTransactions = transactions.filter(t => t.symbol === holding.symbol);
+          let totalCost = 0;
+          let totalShares = 0;
+          
+          symbolTransactions.forEach(t => {
+            if (t.type === 'BUY') {
+              const key = `${t.symbol}-${t.date}`;
+              const price = histPrices[key] || t.price;
+              totalCost += t.shares * price;
+              totalShares += t.shares;
+            }
+          });
+          
+          const avgPrice = totalShares > 0 ? totalCost / totalShares : 0;
+          const currentPrice = prices[holding.symbol] || 0;
+          const value = holding.shares * currentPrice;
+          const cost = holding.shares * avgPrice;
+          const gain = value - cost;
+          const gainPercent = cost > 0 ? ((gain / cost) * 100) : 0;
+
+          // Cache the holding data with calculated values - use a composite key
+          return cacheStockPrice(currentUser.uid, `holding-${holding.symbol}`, currentPrice, {
+            symbol: holding.symbol,
+            shares: holding.shares,
+            avgPrice: parseFloat(avgPrice.toFixed(2)),
+            currentPrice: parseFloat(currentPrice.toFixed(2)),
+            value: parseFloat(value.toFixed(2)),
+            cost: parseFloat(cost.toFixed(2)),
+            gain: parseFloat(gain.toFixed(2)),
+            gainPercent: parseFloat(gainPercent.toFixed(2)),
+            calculatedAt: Date.now()
+          });
+        }));
+      }
     } catch (error) {
       console.error('Error fetching stock prices:', error);
     }
@@ -172,6 +245,130 @@ const Portfolio = () => {
     }
   };
 
+  const handleRemoveHolding = async (symbol) => {
+    if (!window.confirm(`Are you sure you want to remove ${symbol} from your portfolio?`)) {
+      return;
+    }
+
+    try {
+      const result = await removeHolding(currentUser.uid, currentPortfolio.id, symbol);
+      if (result.success) {
+        toast.success(`${symbol} removed from portfolio`);
+        // Reload portfolios to update the UI
+        await fetchPortfolios();
+      } else {
+        toast.error('Failed to remove holding');
+      }
+    } catch (error) {
+      console.error('Error removing holding:', error);
+      toast.error('Failed to remove holding');
+    }
+  };
+
+  const handleBuyMoreShares = (holding) => {
+    setSelectedStock(holding);
+    setSharesToBuy('');
+    setShowBuyModal(true);
+  };
+
+  const handleConfirmBuy = async () => {
+    const shares = parseInt(sharesToBuy);
+    if (isNaN(shares) || shares <= 0) {
+      toast.error('Please enter a valid number of shares');
+      return;
+    }
+
+    const currentPrice = stockPrices[selectedStock.symbol];
+    if (!currentPrice) {
+      toast.error('Unable to fetch current stock price');
+      return;
+    }
+
+    const totalCost = shares * currentPrice;
+    if (totalCost > cashAvailable) {
+      toast.error(`Insufficient funds. You need $${totalCost.toFixed(2)} but have $${cashAvailable.toFixed(2)}`);
+      return;
+    }
+
+    try {
+      const result = await buySharesService(
+        currentUser.uid,
+        currentPortfolio.id,
+        selectedStock.symbol,
+        selectedStock.name,
+        shares,
+        currentPrice
+      );
+
+      if (result.success) {
+        toast.success(`Bought ${shares} shares of ${selectedStock.symbol} for $${totalCost.toFixed(2)}`);
+        setCashAvailable(result.cashAvailable);
+        setShowBuyModal(false);
+        await fetchPortfolios();
+      } else {
+        toast.error(result.message || 'Failed to buy shares');
+      }
+    } catch (error) {
+      console.error('Error buying shares:', error);
+      toast.error('Failed to buy shares');
+    }
+  };
+
+  const handleAddNewStock = async () => {
+    const symbol = newStockSymbol.trim().toUpperCase();
+    const shares = parseInt(newStockShares);
+
+    if (!symbol) {
+      toast.error('Please enter a stock symbol');
+      return;
+    }
+
+    if (isNaN(shares) || shares <= 0) {
+      toast.error('Please enter a valid number of shares');
+      return;
+    }
+
+    try {
+      // Fetch current price for the new stock
+      const priceResult = await getCurrentStockPrices(currentUser.uid, [symbol]);
+      if (!priceResult.success || !priceResult.data[symbol]) {
+        toast.error('Unable to fetch stock price. Please verify the symbol.');
+        return;
+      }
+
+      const currentPrice = priceResult.data[symbol].price;
+      const totalCost = shares * currentPrice;
+
+      if (totalCost > cashAvailable) {
+        toast.error(`Insufficient funds. You need $${totalCost.toFixed(2)} but have $${cashAvailable.toFixed(2)}`);
+        return;
+      }
+
+      const result = await buySharesService(
+        currentUser.uid,
+        currentPortfolio.id,
+        symbol,
+        symbol, // Use symbol as name for now
+        shares,
+        currentPrice
+      );
+
+      if (result.success) {
+        toast.success(`Added ${shares} shares of ${symbol} for $${totalCost.toFixed(2)}`);
+        setCashAvailable(result.cashAvailable);
+        setShowAddStockModal(false);
+        setNewStockSymbol('');
+        setNewStockShares('');
+        await fetchPortfolios();
+      } else {
+        toast.error(result.message || 'Failed to add stock');
+      }
+    } catch (error) {
+      console.error('Error adding stock:', error);
+      toast.error('Failed to add stock');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -199,10 +396,10 @@ const Portfolio = () => {
   const holdings = currentPortfolio.holdings || [];
   const transactions = currentPortfolio.transactions || [];
 
-  // Helper function to calculate average price from transactions using API prices
-  const calculateAvgPrice = (symbol) => {
+  // Helper function to calculate average price and cost basis from transactions
+  const calculateCostBasis = (symbol) => {
     const symbolTransactions = transactions.filter(t => t.symbol === symbol);
-    if (symbolTransactions.length === 0) return 0;
+    if (symbolTransactions.length === 0) return { avgPrice: 0, totalCost: 0, totalShares: 0 };
     
     let totalCost = 0;
     let totalShares = 0;
@@ -213,10 +410,14 @@ const Portfolio = () => {
         const price = historicalPrices[key] || t.price; // Use API price or fallback to stored price
         totalCost += t.shares * price;
         totalShares += t.shares;
+      } else if (t.type === 'SELL') {
+        // For sells, reduce shares but maintain cost basis proportion
+        totalShares -= t.shares;
       }
     });
     
-    return totalShares > 0 ? totalCost / totalShares : 0;
+    const avgPrice = totalShares > 0 ? totalCost / totalShares : 0;
+    return { avgPrice, totalCost, totalShares };
   };
 
   // Get current price from fetched stock prices
@@ -226,9 +427,11 @@ const Portfolio = () => {
 
   // Calculate enriched holdings with dynamic values
   const enrichedHoldings = holdings.map(holding => {
-    const avgPrice = calculateAvgPrice(holding.symbol);
+    const { avgPrice, totalCost } = calculateCostBasis(holding.symbol);
     const currentPrice = getCurrentPrice(holding.symbol);
     const value = holding.shares * currentPrice;
+    
+    // Cost should be based on current shares at average price
     const cost = holding.shares * avgPrice;
     const gain = value - cost;
     const gainPercent = cost > 0 ? ((gain / cost) * 100).toFixed(2) : '0.00';
@@ -238,13 +441,14 @@ const Portfolio = () => {
       avgPrice,
       currentPrice,
       value,
+      cost,
       gain,
       gainPercent
     };
   });
 
   const totalValue = enrichedHoldings.reduce((sum, holding) => sum + holding.value, 0);
-  const totalCost = enrichedHoldings.reduce((sum, holding) => sum + (holding.shares * holding.avgPrice), 0);
+  const totalCost = enrichedHoldings.reduce((sum, holding) => sum + holding.cost, 0);
   const totalGain = totalValue - totalCost;
   const totalGainPercent = totalCost > 0 ? ((totalGain / totalCost) * 100).toFixed(2) : '0.00';
 
@@ -321,7 +525,7 @@ const Portfolio = () => {
 
         <CardDataStats 
           title="Cash Available" 
-          total="$12,450.00" 
+          total={`$${cashAvailable.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} 
           rate="Ready to invest" 
           levelUp
         >
@@ -395,10 +599,29 @@ const Portfolio = () => {
         {/* Holdings Table */}
         {activeTab === 'holdings' && (
           <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-            <div className="py-6 px-4 md:px-6 xl:px-7.5">
+            <div className="py-6 px-4 md:px-6 xl:px-7.5 flex justify-between items-center">
               <h4 className="text-xl font-semibold text-black dark:text-white">
                 Current Holdings
               </h4>
+              <button
+                onClick={() => setShowAddStockModal(true)}
+                className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-4 text-center font-medium text-white hover:bg-opacity-90 lg:px-6 xl:px-8"
+              >
+                <svg
+                  className="fill-current mr-2"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 18 18"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M16.1999 9.30001H9.69989V15.8C9.69989 16.1656 9.41864 16.45 9.05302 16.45C8.68739 16.45 8.40614 16.1687 8.40614 15.8V9.30001H1.89989C1.53427 9.30001 1.24989 9.01876 1.24989 8.65313C1.24989 8.28751 1.53114 8.00626 1.89989 8.00626H8.40614V1.50001C8.40614 1.13438 8.68739 0.853134 9.05302 0.853134C9.41864 0.853134 9.69989 1.13438 9.69989 1.50001V8.00626H16.1999C16.5655 8.00626 16.8499 8.28751 16.8499 8.65313C16.8499 9.01876 16.5655 9.30001 16.1999 9.30001Z"
+                    fill=""
+                  />
+                </svg>
+                Add Stock
+              </button>
             </div>
 
             <div className="overflow-x-auto">
@@ -453,7 +676,7 @@ const Portfolio = () => {
                       </td>
                       <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                         <p className="text-black dark:text-white font-semibold">
-                          {holding.value > 0 ? `$${holding.value.toFixed(2)}` : 'Loading...'}
+                          {holding.currentPrice > 0 ? `$${holding.value.toFixed(2)}` : 'Loading...'}
                         </p>
                       </td>
                       <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
@@ -463,7 +686,7 @@ const Portfolio = () => {
                               ? 'bg-success text-success'
                               : 'bg-danger text-danger'
                           }`}>
-                            {holding.gain >= 0 ? '+' : ''}${holding.gain.toFixed(2)} ({holding.gainPercent}%)
+                            {holding.gain >= 0 ? '+' : ''}${Math.abs(holding.gain).toFixed(2)} ({holding.gainPercent}%)
                           </p>
                         ) : (
                           <p className="text-black dark:text-white text-sm">Loading...</p>
@@ -471,7 +694,11 @@ const Portfolio = () => {
                       </td>
                       <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           <div className="flex items-center space-x-3.5">
-                            <button className="hover:text-primary">
+                            <button 
+                              className="hover:text-primary"
+                              onClick={() => handleBuyMoreShares(holding)}
+                              title={`Buy more ${holding.symbol}`}
+                            >
                               <svg
                                 className="fill-current"
                                 width="18"
@@ -486,7 +713,11 @@ const Portfolio = () => {
                                 />
                               </svg>
                             </button>
-                            <button className="hover:text-danger">
+                            <button 
+                              className="hover:text-danger"
+                              onClick={() => handleRemoveHolding(holding.symbol)}
+                              title={`Remove ${holding.symbol} from portfolio`}
+                            >
                               <svg
                                 className="fill-current"
                                 width="18"
@@ -590,6 +821,110 @@ const Portfolio = () => {
           </div>
         )}
       </div>
+
+      {/* Buy More Shares Modal */}
+      {showBuyModal && (
+        <div className="fixed inset-0 z-999 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-boxdark">
+            <h3 className="mb-4 text-xl font-semibold text-black dark:text-white">
+              Buy More Shares of {selectedStock?.symbol}
+            </h3>
+            <p className="mb-4 text-sm text-body">
+              Current Price: ${stockPrices[selectedStock?.symbol]?.toFixed(2) || 'Loading...'}
+            </p>
+            <p className="mb-4 text-sm text-body">
+              Cash Available: ${cashAvailable.toFixed(2)}
+            </p>
+            <div className="mb-4">
+              <label className="mb-2.5 block font-medium text-black dark:text-white">
+                Number of Shares
+              </label>
+              <input
+                type="number"
+                value={sharesToBuy}
+                onChange={(e) => setSharesToBuy(e.target.value)}
+                placeholder="Enter number of shares"
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+              {sharesToBuy && stockPrices[selectedStock?.symbol] && (
+                <p className="mt-2 text-sm text-body">
+                  Total Cost: ${(parseInt(sharesToBuy) * stockPrices[selectedStock?.symbol]).toFixed(2)}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowBuyModal(false)}
+                className="rounded border border-stroke py-2 px-6 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmBuy}
+                className="rounded bg-primary py-2 px-6 font-medium text-white hover:bg-opacity-90"
+              >
+                Buy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Stock Modal */}
+      {showAddStockModal && (
+        <div className="fixed inset-0 z-999 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-boxdark">
+            <h3 className="mb-4 text-xl font-semibold text-black dark:text-white">
+              Add New Stock to Portfolio
+            </h3>
+            <p className="mb-4 text-sm text-body">
+              Cash Available: ${cashAvailable.toFixed(2)}
+            </p>
+            <div className="mb-4">
+              <label className="mb-2.5 block font-medium text-black dark:text-white">
+                Stock Symbol (Ticker)
+              </label>
+              <input
+                type="text"
+                value={newStockSymbol}
+                onChange={(e) => setNewStockSymbol(e.target.value.toUpperCase())}
+                placeholder="e.g., AAPL, TSLA"
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="mb-2.5 block font-medium text-black dark:text-white">
+                Number of Shares
+              </label>
+              <input
+                type="number"
+                value={newStockShares}
+                onChange={(e) => setNewStockShares(e.target.value)}
+                placeholder="Enter number of shares"
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+            </div>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => {
+                  setShowAddStockModal(false);
+                  setNewStockSymbol('');
+                  setNewStockShares('');
+                }}
+                className="rounded border border-stroke py-2 px-6 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddNewStock}
+                className="rounded bg-primary py-2 px-6 font-medium text-white hover:bg-opacity-90"
+              >
+                Add Stock
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

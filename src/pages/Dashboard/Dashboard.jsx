@@ -54,9 +54,6 @@ const Dashboard = () => {
         <ChartTwo />
         <ChartThree portfolio={portfolio} />
         <ChartFour />
-        <div className="col-span-12">
-          <TableOne />
-        </div>
       </div>
     </>
   );

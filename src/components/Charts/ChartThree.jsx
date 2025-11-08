@@ -10,17 +10,27 @@ const ChartThree = ({ portfolio }) => {
   const [chartData, setChartData] = useState({ series: [] });
 
   useEffect(() => {
-    if (portfolio && portfolio.holdings && currentUser) {
+    if (portfolio && portfolio.holdings && portfolio.holdings.length > 0 && currentUser) {
       fetchStockPrices();
+      
+      // Set up background refresh after 1 minute
+      const refreshTimer = setTimeout(() => {
+        console.log('Background refresh: Updating chart prices after 1 minute');
+        fetchStockPrices(true); // Force refresh
+      }, 60000); // 60 seconds
+      
+      return () => clearTimeout(refreshTimer);
+    } else {
+      setLoading(false);
     }
   }, [portfolio, currentUser]);
 
-  const fetchStockPrices = async () => {
+  const fetchStockPrices = async (forceRefresh = false) => {
     try {
       const symbols = portfolio.holdings.map(h => h.symbol);
 
-      // Fetch current prices (with caching)
-      const result = await getCurrentStockPrices(currentUser.uid, symbols);
+      // Fetch current prices (cache first, then API if needed)
+      const result = await getCurrentStockPrices(currentUser.uid, symbols, forceRefresh);
       
       if (result.success) {
         const prices = {};
@@ -46,11 +56,15 @@ const ChartThree = ({ portfolio }) => {
     }
   };
 
-  if (!portfolio || !portfolio.holdings || loading) {
+  if (!portfolio || !portfolio.holdings || portfolio.holdings.length === 0 || loading) {
     return (
       <div className="col-span-12 rounded-sm border border-stroke bg-white px-5 pt-7.5 pb-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:col-span-5">
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="flex items-center justify-center h-full min-h-[300px]">
+          {loading ? (
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          ) : (
+            <p className="text-gray-500 dark:text-gray-400">No holdings to display</p>
+          )}
         </div>
       </div>
     );
@@ -70,6 +84,17 @@ const ChartThree = ({ portfolio }) => {
     ...holding,
     percentage: totalValue > 0 ? (holding.value / totalValue * 100).toFixed(1) : 0
   }));
+
+  // Additional safety check - ensure we have valid data before rendering chart
+  if (holdingsWithPercentage.length === 0 || chartData.series.length === 0 || totalValue === 0) {
+    return (
+      <div className="sm:px-7.5 col-span-12 rounded-sm border border-stroke bg-white px-5 pb-5 pt-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-5">
+        <div className="flex items-center justify-center h-full min-h-[300px]">
+          <p className="text-gray-500 dark:text-gray-400">No holdings data to display</p>
+        </div>
+      </div>
+    );
+  }
 
   const options = {
     chart: {
@@ -154,51 +179,22 @@ const ChartThree = ({ portfolio }) => {
       </div>
 
       <div className="-mx-8 flex flex-wrap items-center justify-center gap-y-3">
-        <div className="sm:w-1/2 w-full px-8">
-          <div className="flex w-full items-center">
-            <span className="mr-2 block h-3 w-full max-w-3 rounded-full bg-primary"></span>
-            <p className="flex w-full justify-between text-sm font-medium text-black dark:text-white">
-              <span> {holdingsWithPercentage[0].symbol} </span>
-              <span> {holdingsWithPercentage[0].percentage}% </span>
-            </p>
-          </div>
-        </div>
-        <div className="sm:w-1/2 w-full px-8">
-          <div className="flex w-full items-center">
-            <span className="mr-2 block h-3 w-full max-w-3 rounded-full bg-[#6577F3]"></span>
-            <p className="flex w-full justify-between text-sm font-medium text-black dark:text-white">
-              <span> {holdingsWithPercentage[1].symbol} </span>
-              <span> {holdingsWithPercentage[1].percentage}% </span>
-            </p>
-          </div>
-        </div>
-        <div className="sm:w-1/2 w-full px-8">
-          <div className="flex w-full items-center">
-            <span className="mr-2 block h-3 w-full max-w-3 rounded-full bg-[#8FD0EF]"></span>
-            <p className="flex w-full justify-between text-sm font-medium text-black dark:text-white">
-              <span> {holdingsWithPercentage[2].symbol} </span>
-              <span> {holdingsWithPercentage[2].percentage}% </span>
-            </p>
-          </div>
-        </div>
-        <div className="sm:w-1/2 w-full px-8">
-          <div className="flex w-full items-center">
-            <span className="mr-2 block h-3 w-full max-w-3 rounded-full bg-[#0FADCF]"></span>
-            <p className="flex w-full justify-between text-sm font-medium text-black dark:text-white">
-              <span> {holdingsWithPercentage[3].symbol} </span>
-              <span> {holdingsWithPercentage[3].percentage}% </span>
-            </p>
-          </div>
-        </div>
-        <div className="sm:w-1/2 w-full px-8">
-          <div className="flex w-full items-center">
-            <span className="mr-2 block h-3 w-full max-w-3 rounded-full bg-[#1E90FF]"></span>
-            <p className="flex w-full justify-between text-sm font-medium text-black dark:text-white">
-              <span> {holdingsWithPercentage[4].symbol} </span>
-              <span> {holdingsWithPercentage[4].percentage}% </span>
-            </p>
-          </div>
-        </div>
+        {holdingsWithPercentage.map((holding, index) => {
+          const colors = ['bg-primary', 'bg-[#6577F3]', 'bg-[#8FD0EF]', 'bg-[#0FADCF]', 'bg-[#1E90FF]'];
+          const colorClass = colors[index % colors.length];
+          
+          return (
+            <div key={holding.symbol} className="sm:w-1/2 w-full px-8">
+              <div className="flex w-full items-center">
+                <span className={`mr-2 block h-3 w-full max-w-3 rounded-full ${colorClass}`}></span>
+                <p className="flex w-full justify-between text-sm font-medium text-black dark:text-white">
+                  <span> {holding.symbol} </span>
+                  <span> {holding.percentage}% </span>
+                </p>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

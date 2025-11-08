@@ -79,6 +79,74 @@ export const updateUserDocument = async (userId, updates) => {
   }
 };
 
+/**
+ * Initialize or get user cash balance
+ * @param {string} userId - The user's Firebase Auth UID
+ */
+export const getUserCash = async (userId) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      // If cashAvailable doesn't exist, initialize it to $15,000
+      if (userData.cashAvailable === undefined) {
+        await updateDoc(userRef, {
+          cashAvailable: 15000,
+          updatedAt: serverTimestamp()
+        });
+        return { success: true, cashAvailable: 15000 };
+      }
+      return { success: true, cashAvailable: userData.cashAvailable };
+    } else {
+      // Create user document with initial cash
+      await setDoc(userRef, {
+        cashAvailable: 15000,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return { success: true, cashAvailable: 15000 };
+    }
+  } catch (error) {
+    console.error('Error getting user cash:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Update user cash balance
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {number} amount - Amount to add (positive) or subtract (negative)
+ */
+export const updateUserCash = async (userId, amount) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const currentCash = userSnap.data().cashAvailable || 0;
+      const newCash = currentCash + amount;
+      
+      if (newCash < 0) {
+        return { success: false, message: 'Insufficient funds' };
+      }
+      
+      await updateDoc(userRef, {
+        cashAvailable: newCash,
+        updatedAt: serverTimestamp()
+      });
+      
+      return { success: true, cashAvailable: newCash };
+    } else {
+      return { success: false, message: 'User not found' };
+    }
+  } catch (error) {
+    console.error('Error updating user cash:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // ============================================
 // PORTFOLIO OPERATIONS
 // ============================================
@@ -213,6 +281,105 @@ export const addHolding = async (userId, portfolioId, holding) => {
 };
 
 /**
+ * Remove a holding from a portfolio
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} portfolioId - The portfolio document ID
+ * @param {string} symbol - Stock symbol to remove
+ */
+export const removeHolding = async (userId, portfolioId, symbol) => {
+  try {
+    const portfolioRef = doc(db, 'users', userId, 'portfolios', portfolioId);
+    const portfolioSnap = await getDoc(portfolioRef);
+    
+    if (portfolioSnap.exists()) {
+      const currentHoldings = portfolioSnap.data().holdings || [];
+      const updatedHoldings = currentHoldings.filter(h => h.symbol !== symbol);
+      
+      await updateDoc(portfolioRef, {
+        holdings: updatedHoldings,
+        updatedAt: serverTimestamp()
+      });
+      return { success: true };
+    } else {
+      return { success: false, message: 'Portfolio not found' };
+    }
+  } catch (error) {
+    console.error('Error removing holding:', error);
+    throw error;
+  }
+};
+
+/**
+ * Buy more shares of a stock (adds to existing holding or creates new one)
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} portfolioId - The portfolio document ID
+ * @param {string} symbol - Stock symbol
+ * @param {string} name - Stock name
+ * @param {number} shares - Number of shares to buy
+ * @param {number} price - Price per share
+ */
+export const buyShares = async (userId, portfolioId, symbol, name, shares, price) => {
+  try {
+    const totalCost = shares * price;
+    
+    // Check if user has enough cash
+    const cashResult = await getUserCash(userId);
+    if (!cashResult.success || cashResult.cashAvailable < totalCost) {
+      return { success: false, message: 'Insufficient funds' };
+    }
+    
+    // Deduct cash from user
+    const updateCashResult = await updateUserCash(userId, -totalCost);
+    if (!updateCashResult.success) {
+      return { success: false, message: updateCashResult.message };
+    }
+    
+    // Update portfolio holdings
+    const portfolioRef = doc(db, 'users', userId, 'portfolios', portfolioId);
+    const portfolioSnap = await getDoc(portfolioRef);
+    
+    if (!portfolioSnap.exists()) {
+      return { success: false, message: 'Portfolio not found' };
+    }
+    
+    const currentHoldings = portfolioSnap.data().holdings || [];
+    const existingHoldingIndex = currentHoldings.findIndex(h => h.symbol === symbol);
+    
+    if (existingHoldingIndex >= 0) {
+      // Add to existing holding
+      currentHoldings[existingHoldingIndex].shares += shares;
+    } else {
+      // Create new holding
+      currentHoldings.push({ symbol, name, shares });
+    }
+    
+    await updateDoc(portfolioRef, {
+      holdings: currentHoldings,
+      updatedAt: serverTimestamp()
+    });
+    
+    // Add transaction record
+    const today = new Date().toISOString().split('T')[0];
+    await addTransaction(userId, portfolioId, {
+      date: today,
+      type: 'BUY',
+      symbol,
+      shares,
+      price
+    });
+    
+    return { 
+      success: true, 
+      cashAvailable: updateCashResult.cashAvailable,
+      totalCost 
+    };
+  } catch (error) {
+    console.error('Error buying shares:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Add a transaction to a portfolio
  * @param {string} userId - The user's Firebase Auth UID
  * @param {string} portfolioId - The portfolio document ID
@@ -225,8 +392,15 @@ export const addTransaction = async (userId, portfolioId, transaction) => {
     
     if (portfolioSnap.exists()) {
       const currentTransactions = portfolioSnap.data().transactions || [];
+      // Calculate total for the transaction
+      const total = transaction.shares * transaction.price;
+      
       await updateDoc(portfolioRef, {
-        transactions: [...currentTransactions, { ...transaction, timestamp: serverTimestamp() }],
+        transactions: [...currentTransactions, { 
+          ...transaction, 
+          total,
+          timestamp: Date.now() // Use Date.now() instead of serverTimestamp()
+        }],
         updatedAt: serverTimestamp()
       });
       return { success: true };
@@ -491,7 +665,7 @@ export const isInWatchlist = async (userId, symbol) => {
  * @param {string} userId - The user's Firebase Auth UID
  * @param {string} symbol - Stock symbol
  * @param {number} price - Current stock price
- * @param {object} additionalData - Optional additional data (historical prices, etc.)
+ * @param {object} additionalData - Optional additional data (historical prices, avgPrice, gain, etc.)
  */
 export const cacheStockPrice = async (userId, symbol, price, additionalData = {}) => {
   try {

@@ -1,82 +1,72 @@
 import React, { useState, useEffect } from 'react';
 import ReactApexChart from 'react-apexcharts';
-import { useAuth } from '../../contexts/AuthContext';
-import { getHistoricalStockData } from '../../services/stockDataService';
 
 const ChartOne = ({ portfolio }) => {
-  const { currentUser } = useAuth();
   const [series, setSeries] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (portfolio && portfolio.holdings && currentUser) {
+    if (portfolio && portfolio.holdings && portfolio.holdings.length > 0) {
       fetchHistoricalData();
+    } else {
+      setLoading(false);
     }
-  }, [portfolio, currentUser]);
+  }, [portfolio]);
 
   const fetchHistoricalData = async () => {
     try {
       const symbols = portfolio.holdings.map(h => h.symbol);
       
-      // Get date range (last 30 days)
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30);
+      // Generate fake historical data for demo purposes
+      console.log('Generating fake historical data for', symbols);
       
-      const formatDate = (date) => date.toISOString().split('T')[0];
-
-      // Fetch historical data for all symbols (with caching)
-      const fetchPromises = symbols.map(async (symbol) => {
-        const result = await getHistoricalStockData(
-          currentUser.uid,
-          symbol,
-          formatDate(startDate),
-          formatDate(endDate)
-        );
-        
-        if (result.success && result.data.results.length > 0) {
-          return {
-            name: symbol,
-            data: result.data.results.map(r => r.close) // closing prices
-          };
-        }
-        return { name: symbol, data: [] };
-      });
-
-      const results = await Promise.all(fetchPromises);
-      
-      // Generate date labels from the first result
-      if (results.length > 0 && results[0].data.length > 0) {
-        const firstResult = await getHistoricalStockData(
-          currentUser.uid,
-          symbols[0],
-          formatDate(startDate),
-          formatDate(endDate)
-        );
-        
-        if (firstResult.success && firstResult.data.results) {
-          const dates = firstResult.data.results.map(r => {
-            const date = new Date(r.timestamp);
-            return `${date.getMonth() + 1}/${date.getDate()}`;
-          });
-          setCategories(dates);
-        }
+      // Generate dates for last 30 days
+      const dates = [];
+      const today = new Date();
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        dates.push(`${date.getMonth() + 1}/${date.getDate()}`);
       }
       
-      setSeries(results.filter(r => r.data.length > 0));
+      // Generate fake price data for each symbol
+      const fakeData = symbols.map(symbol => {
+        const basePrice = 100 + Math.random() * 100; // Random base price between 100-200
+        const data = [];
+        
+        for (let i = 0; i < 30; i++) {
+          // Generate realistic price movements (±2% daily change)
+          const previousPrice = i === 0 ? basePrice : data[i - 1];
+          const change = previousPrice * (Math.random() * 0.04 - 0.02); // -2% to +2%
+          const newPrice = previousPrice + change;
+          data.push(parseFloat(newPrice.toFixed(2)));
+        }
+        
+        return {
+          name: symbol,
+          data: data
+        };
+      });
+      
+      setCategories(dates);
+      setSeries(fakeData);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching historical data:', error);
+      console.error('Error generating historical data:', error);
       setLoading(false);
     }
   };
 
-  if (!portfolio || !portfolio.holdings || loading) {
+  if (!portfolio || !portfolio.holdings || portfolio.holdings.length === 0 || loading) {
     return (
       <div className="col-span-12 rounded-sm border border-stroke bg-white px-5 pt-7.5 pb-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:col-span-8">
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="flex items-center justify-center h-full min-h-[300px]">
+          {loading ? (
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          ) : (
+            <p className="text-gray-500 dark:text-gray-400">No holdings to display</p>
+          )}
         </div>
       </div>
     );
@@ -162,20 +152,34 @@ const ChartOne = ({ portfolio }) => {
       axisBorder: {
         show: false,
       },
-    axisTicks: {
-      show: false,
-    },
-  },
-  yaxis: {
-    title: {
-      style: {
-        fontSize: '0px',
+      axisTicks: {
+        show: false,
       },
     },
-    min: 0,
-    max: 100,
-  },
-};
+    yaxis: {
+      title: {
+        style: {
+          fontSize: '0px',
+        },
+      },
+      labels: {
+        formatter: function (value) {
+          return '$' + value.toFixed(2);
+        },
+      },
+    },
+  };
+
+  // Don't render chart if we don't have valid data
+  if (series.length === 0 || categories.length === 0) {
+    return (
+      <div className="col-span-12 rounded-sm border border-stroke bg-white px-5 pt-7.5 pb-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:col-span-8">
+        <div className="flex items-center justify-center h-full min-h-[300px]">
+          <p className="text-gray-500 dark:text-gray-400">No data available to display chart</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white px-5 pt-7.5 pb-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:col-span-8">

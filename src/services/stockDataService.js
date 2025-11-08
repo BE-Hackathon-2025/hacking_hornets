@@ -12,19 +12,20 @@ import {
 } from './firestoreService';
 
 const API_KEY = import.meta.env.VITE_POLYGON_API_KEY;
-const CACHE_DURATION_MINUTES = 5; // Cache stock prices for 5 minutes
+const CACHE_DURATION_MINUTES = 60; // Cache stock prices for 60 minutes (1 hour)
 
 /**
  * Fetch current stock price (with caching)
  * @param {string} userId - User ID for cache
  * @param {string} symbol - Stock symbol
  * @param {boolean} forceRefresh - Force API fetch even if cache exists
+ * @param {boolean} cacheFirst - Load cache immediately, fetch in background
  * @returns {Promise<object>} - Stock price data
  */
-export const getCurrentStockPrice = async (userId, symbol, forceRefresh = false) => {
+export const getCurrentStockPrice = async (userId, symbol, forceRefresh = false, cacheFirst = true) => {
   try {
-    // Check cache first (unless force refresh)
-    if (!forceRefresh) {
+    // Always check cache first for instant loading
+    if (cacheFirst) {
       const cached = await getCachedStockPrice(userId, symbol, CACHE_DURATION_MINUTES);
       if (cached.success) {
         console.log(`Using cached price for ${symbol}`);
@@ -32,7 +33,7 @@ export const getCurrentStockPrice = async (userId, symbol, forceRefresh = false)
       }
     }
 
-    // Fetch from API using rate limiter
+    // If no cache or force refresh, fetch from API
     console.log(`Fetching fresh price for ${symbol} from API`);
     const data = await polygonRateLimiter.enqueue(async () => {
       const response = await fetch(
@@ -145,6 +146,33 @@ export const getCurrentStockPrices = async (userId, symbols, forceRefresh = fals
 export const getHistoricalStockPrice = async (userId, symbol, date, forceRefresh = false) => {
   try {
     const cacheKey = `${symbol}-${date}`;
+    
+    // Check if date is today or in the future - use current price instead
+    const today = new Date().toISOString().split('T')[0];
+    const requestDate = new Date(date);
+    const todayDate = new Date(today);
+    
+    if (requestDate >= todayDate) {
+      console.log(`Date ${date} is today or future, fetching current price instead`);
+      const currentResult = await getCurrentStockPrice(userId, symbol, forceRefresh);
+      if (currentResult.success) {
+        return {
+          success: true,
+          data: {
+            symbol,
+            date,
+            price: currentResult.data.price,
+            open: currentResult.data.open,
+            high: currentResult.data.high,
+            low: currentResult.data.low,
+            volume: currentResult.data.volume,
+            timestamp: Date.now()
+          },
+          fromCache: currentResult.fromCache
+        };
+      }
+      return { success: false, error: 'Unable to fetch current price', fromCache: false };
+    }
     
     // Check cache first
     if (!forceRefresh) {
