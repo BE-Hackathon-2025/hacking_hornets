@@ -8,7 +8,9 @@ import {
   createPortfolio,
   getUserPortfolios,
   updatePortfolio,
-  buyShares
+  buyShares,
+  getUserCash,
+  updateUserCash
 } from '../../services/firestoreService';
 import { getPortfolioAdvice, getFinanceQA } from '../../services/fastApiService';
 import toast from 'react-hot-toast';
@@ -159,9 +161,64 @@ const AI = () => {
         return;
       }
 
-      // Get user's portfolios
+      // Get user's current cash balance
+      const cashResult = await getUserCash(currentUser.uid);
+      if (!cashResult.success) {
+        toast.error('Failed to check available cash');
+        return;
+      }
+      
+      const availableCash = cashResult.cashAvailable;
+      console.log('💰 Available cash:', availableCash);
+
+      // Calculate total cost of new purchases
+      let totalCost = 0;
       const portfoliosResult = await getUserPortfolios(currentUser.uid);
-      console.log('📂 User portfolios:', portfoliosResult);
+      const currentPortfolio = portfoliosResult.success && portfoliosResult.data.length > 0 
+        ? portfoliosResult.data[0] 
+        : null;
+      const currentHoldings = currentPortfolio?.holdings || [];
+
+      for (const asset of assets) {
+        const existingHolding = currentHoldings.find(h => h.symbol === asset.symbol);
+        
+        if (existingHolding) {
+          // If increasing shares, calculate additional cost
+          const additionalShares = asset.shares - existingHolding.shares;
+          if (additionalShares > 0) {
+            totalCost += additionalShares * asset.avgPrice;
+            console.log(`📈 ${asset.symbol}: Adding ${additionalShares} shares @ $${asset.avgPrice} = $${additionalShares * asset.avgPrice}`);
+          }
+        } else {
+          // New purchase
+          totalCost += asset.shares * asset.avgPrice;
+          console.log(`🆕 ${asset.symbol}: ${asset.shares} shares @ $${asset.avgPrice} = $${asset.shares * asset.avgPrice}`);
+        }
+      }
+
+      console.log(`💵 Total cost: $${totalCost.toFixed(2)}`);
+      console.log(`💰 Available cash: $${availableCash.toFixed(2)}`);
+
+      // Check if user has enough cash
+      if (totalCost > availableCash) {
+        const shortfall = totalCost - availableCash;
+        toast.error(`Insufficient funds! You need $${totalCost.toFixed(2)} but only have $${availableCash.toFixed(2)}. Short by $${shortfall.toFixed(2)}`);
+        console.log('❌ Insufficient funds for portfolio update');
+        
+        // Add a message to chat explaining the issue
+        const errorMessage = {
+          id: messages.length + 1,
+          text: `❌ Cannot complete portfolio update.\n\nRequired: $${totalCost.toFixed(2)}\nAvailable: $${availableCash.toFixed(2)}\nShortfall: $${shortfall.toFixed(2)}\n\nPlease adjust your portfolio request or add more funds.`,
+          sender: 'ai',
+          role: 'assistant',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        return;
+      }
+
+      // Get user's portfolios
+      console.log('📂 Fetching user portfolios...');
       
       let portfolioId;
       
@@ -189,18 +246,16 @@ const AI = () => {
 
       // Add each asset to the portfolio using updatePortfolio to directly modify holdings
       console.log(`📊 Adding ${assets.length} assets to portfolio...`);
-      const portfoliosRef = await getUserPortfolios(currentUser.uid);
-      const currentPortfolio = portfoliosRef.data.find(p => p.id === portfolioId);
-      const currentHoldings = currentPortfolio?.holdings || [];
+      const updatedHoldings = [...currentHoldings];
       
       // Add or update holdings
       for (const asset of assets) {
         console.log('➕ Processing asset:', asset);
-        const existingIndex = currentHoldings.findIndex(h => h.symbol === asset.symbol);
+        const existingIndex = updatedHoldings.findIndex(h => h.symbol === asset.symbol);
         
         if (existingIndex >= 0) {
           // Update existing holding
-          currentHoldings[existingIndex] = {
+          updatedHoldings[existingIndex] = {
             symbol: asset.symbol,
             name: asset.name,
             shares: asset.shares,
@@ -209,7 +264,7 @@ const AI = () => {
           console.log('✏️ Updated existing holding:', asset.symbol);
         } else {
           // Add new holding
-          currentHoldings.push({
+          updatedHoldings.push({
             symbol: asset.symbol,
             name: asset.name,
             shares: asset.shares,
@@ -221,8 +276,15 @@ const AI = () => {
 
       // Update portfolio with new holdings
       await updatePortfolio(currentUser.uid, portfolioId, {
-        holdings: currentHoldings
+        holdings: updatedHoldings
       });
+
+      // Deduct the cost from user's cash
+      await updateUserCash(currentUser.uid, -totalCost);
+      console.log(`💸 Deducted $${totalCost.toFixed(2)} from cash balance`);
+      
+      const newBalance = availableCash - totalCost;
+      console.log(`💰 New cash balance: $${newBalance.toFixed(2)}`);
 
       console.log('🎉 All assets added successfully!');
       toast.success(`Successfully added ${assets.length} stock(s) to your portfolio!`);

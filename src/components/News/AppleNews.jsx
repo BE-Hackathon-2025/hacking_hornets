@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 const AppleNews = () => {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [usingFallback, setUsingFallback] = useState(false);
 
   useEffect(() => {
     fetchAppleNews();
@@ -10,36 +11,56 @@ const AppleNews = () => {
 
   const fetchAppleNews = async () => {
     try {
-      // Using NewsAPI - you'll need to sign up for a free API key at https://newsapi.org/
-      const API_KEY = import.meta.env.VITE_NEWS_API_KEY || 'demo'; // Add your API key to .env
+      const API_KEY = import.meta.env.VITE_NEWS_API_KEY;
+      
+      if (!API_KEY || API_KEY === 'demo' || API_KEY === 'your_newsapi_key_here') {
+        console.warn('NewsAPI key not configured. Using fallback data.');
+        throw new Error('API key not configured');
+      }
+
+      console.log('Fetching Apple news from NewsAPI...');
       const response = await fetch(
         `https://newsapi.org/v2/everything?q=Apple+stock+OR+AAPL&sortBy=publishedAt&pageSize=3&apiKey=${API_KEY}`
       );
       
       if (!response.ok) {
-        throw new Error('Failed to fetch news');
+        const errorData = await response.json();
+        console.error('NewsAPI error:', errorData);
+        throw new Error(`Failed to fetch news: ${errorData.message || response.statusText}`);
       }
       
       const data = await response.json();
-      setArticles(data.articles || []);
+      console.log('Fetched articles:', data.articles?.length || 0);
+      
+      if (data.articles && data.articles.length > 0) {
+        setArticles(data.articles);
+        setUsingFallback(false);
+      } else {
+        console.warn('No articles returned from NewsAPI');
+        throw new Error('No articles found');
+      }
     } catch (error) {
       console.error('Error fetching Apple news:', error);
+      setUsingFallback(true);
       // Fallback to mock data if API fails
       setArticles([
         {
           title: "Apple Stock Reaches New Heights Amid Strong iPhone Sales",
-          url: "#",
-          source: { name: "Financial Times" }
+          url: "https://www.apple.com/newsroom/",
+          source: { name: "Financial Times" },
+          description: "Apple's stock performance continues to impress investors."
         },
         {
           title: "Analysts Upgrade Apple Price Target Following Services Growth",
-          url: "#",
-          source: { name: "Bloomberg" }
+          url: "https://www.apple.com/newsroom/",
+          source: { name: "Bloomberg" },
+          description: "Strong growth in Apple's services segment drives analyst optimism."
         },
         {
           title: "Apple's AI Strategy Impresses Wall Street Investors",
-          url: "#",
-          source: { name: "Reuters" }
+          url: "https://www.apple.com/newsroom/",
+          source: { name: "Reuters" },
+          description: "Apple's artificial intelligence initiatives gain investor confidence."
         }
       ]);
     } finally {
@@ -50,12 +71,21 @@ const AppleNews = () => {
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
       <div className="mb-6">
-        <h4 className="text-xl font-semibold text-black dark:text-white">
-          News
-        </h4>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Latest updates on Apple (AAPL)
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-xl font-semibold text-black dark:text-white">
+              News
+            </h4>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Latest updates on Apple (AAPL)
+            </p>
+          </div>
+          {usingFallback && (
+            <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+              Demo
+            </span>
+          )}
+        </div>
       </div>
 
       {loading ? (

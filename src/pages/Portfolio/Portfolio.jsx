@@ -186,10 +186,8 @@ const Portfolio = () => {
       if (result.success && result.data.length > 0) {
         setPortfolios(result.data);
         setCurrentPortfolio(result.data[0]); // Set first portfolio as current
-      } else if (!isInitializing) {
-        // Create initial portfolio if none exists and not already initializing
-        await initializePortfolio();
       }
+      // Removed automatic portfolio initialization - users start with empty portfolio
     } catch (error) {
       console.error('Error fetching portfolios:', error);
       toast.error('Failed to load portfolios');
