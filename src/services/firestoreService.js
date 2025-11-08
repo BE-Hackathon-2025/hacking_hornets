@@ -481,3 +481,109 @@ export const isInWatchlist = async (userId, symbol) => {
     throw error;
   }
 };
+
+// ============================================
+// STOCK PRICE CACHING
+// ============================================
+
+/**
+ * Cache stock price data in Firestore
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} symbol - Stock symbol
+ * @param {number} price - Current stock price
+ * @param {object} additionalData - Optional additional data (historical prices, etc.)
+ */
+export const cacheStockPrice = async (userId, symbol, price, additionalData = {}) => {
+  try {
+    const cacheRef = doc(db, 'users', userId, 'priceCache', symbol);
+    await setDoc(cacheRef, {
+      symbol,
+      price,
+      ...additionalData,
+      lastUpdated: serverTimestamp(),
+      timestamp: Date.now() // Client timestamp for immediate access
+    }, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error('Error caching stock price:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get cached stock price from Firestore
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} symbol - Stock symbol
+ * @param {number} maxAgeMinutes - Maximum age of cached data in minutes (default: 5)
+ * @returns {object} - Cached price data or null if expired/not found
+ */
+export const getCachedStockPrice = async (userId, symbol, maxAgeMinutes = 5) => {
+  try {
+    const cacheRef = doc(db, 'users', userId, 'priceCache', symbol);
+    const cacheSnap = await getDoc(cacheRef);
+    
+    if (cacheSnap.exists()) {
+      const data = cacheSnap.data();
+      const now = Date.now();
+      const cacheAge = now - (data.timestamp || 0);
+      const maxAge = maxAgeMinutes * 60 * 1000; // Convert to milliseconds
+      
+      if (cacheAge < maxAge) {
+        return { success: true, data, isCached: true };
+      } else {
+        return { success: false, error: 'Cache expired', isCached: false };
+      }
+    }
+    
+    return { success: false, error: 'No cached data', isCached: false };
+  } catch (error) {
+    console.error('Error getting cached stock price:', error);
+    return { success: false, error: error.message, isCached: false };
+  }
+};
+
+/**
+ * Get multiple cached stock prices at once
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string[]} symbols - Array of stock symbols
+ * @param {number} maxAgeMinutes - Maximum age of cached data in minutes (default: 5)
+ * @returns {object} - Object with symbol keys and cached price data
+ */
+export const getCachedStockPrices = async (userId, symbols, maxAgeMinutes = 5) => {
+  try {
+    const cachePromises = symbols.map(symbol => 
+      getCachedStockPrice(userId, symbol, maxAgeMinutes)
+    );
+    const results = await Promise.all(cachePromises);
+    
+    const cachedPrices = {};
+    symbols.forEach((symbol, index) => {
+      if (results[index].success) {
+        cachedPrices[symbol] = results[index].data;
+      }
+    });
+    
+    return { success: true, data: cachedPrices };
+  } catch (error) {
+    console.error('Error getting cached stock prices:', error);
+    return { success: false, error: error.message, data: {} };
+  }
+};
+
+/**
+ * Batch cache multiple stock prices
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {object} pricesData - Object with symbol keys and price data values
+ */
+export const batchCacheStockPrices = async (userId, pricesData) => {
+  try {
+    const cachePromises = Object.entries(pricesData).map(([symbol, data]) =>
+      cacheStockPrice(userId, symbol, data.price, data.additionalData || {})
+    );
+    await Promise.all(cachePromises);
+    return { success: true };
+  } catch (error) {
+    console.error('Error batch caching stock prices:', error);
+    return { success: false, error: error.message };
+  }
+};

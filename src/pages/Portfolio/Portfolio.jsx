@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getCurrentStockPrices, getHistoricalStockPrice } from '../../services/stockDataService';
 import { 
   getUserPortfolios, 
   createPortfolio, 
@@ -21,6 +22,8 @@ const Portfolio = () => {
   const [currentPortfolio, setCurrentPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [stockPrices, setStockPrices] = useState({});
+  const [historicalPrices, setHistoricalPrices] = useState({});
 
   const [user, isloading] = useAuthState(auth);
 
@@ -42,6 +45,62 @@ const Portfolio = () => {
       fetchPortfolios();
     }
   }, [currentUser]);
+
+  // Fetch stock prices when portfolio changes
+  useEffect(() => {
+    if (currentPortfolio && currentPortfolio.holdings) {
+      fetchStockPrices();
+    }
+  }, [currentPortfolio]);
+
+  // Fetch real-time stock prices from Polygon API (with caching)
+  const fetchStockPrices = async () => {
+    try {
+      const symbols = currentPortfolio.holdings.map(h => h.symbol);
+      const transactions = currentPortfolio.transactions || [];
+
+      // Fetch current prices (with caching)
+      const currentPricesResult = await getCurrentStockPrices(currentUser.uid, symbols);
+      
+      if (currentPricesResult.success) {
+        const prices = {};
+        Object.entries(currentPricesResult.data).forEach(([symbol, data]) => {
+          prices[symbol] = data.price;
+        });
+        setStockPrices(prices);
+      }
+
+      // Fetch historical prices for transaction dates (with caching)
+      const historicalPromises = transactions.map(async (transaction) => {
+        const result = await getHistoricalStockPrice(
+          currentUser.uid,
+          transaction.symbol,
+          transaction.date
+        );
+        
+        if (result.success) {
+          return {
+            key: `${transaction.symbol}-${transaction.date}`,
+            price: result.data.price
+          };
+        }
+        return {
+          key: `${transaction.symbol}-${transaction.date}`,
+          price: transaction.price // Fallback to stored price
+        };
+      });
+
+      const historicalResults = await Promise.all(historicalPromises);
+      
+      const histPrices = {};
+      historicalResults.forEach(({ key, price }) => {
+        histPrices[key] = price;
+      });
+      setHistoricalPrices(histPrices);
+    } catch (error) {
+      console.error('Error fetching stock prices:', error);
+    }
+  };
 
   const fetchPortfolios = async () => {
     try {
@@ -140,7 +199,7 @@ const Portfolio = () => {
   const holdings = currentPortfolio.holdings || [];
   const transactions = currentPortfolio.transactions || [];
 
-  // Helper function to calculate average price from transactions
+  // Helper function to calculate average price from transactions using API prices
   const calculateAvgPrice = (symbol) => {
     const symbolTransactions = transactions.filter(t => t.symbol === symbol);
     if (symbolTransactions.length === 0) return 0;
@@ -150,7 +209,9 @@ const Portfolio = () => {
     
     symbolTransactions.forEach(t => {
       if (t.type === 'BUY') {
-        totalCost += t.total;
+        const key = `${t.symbol}-${t.date}`;
+        const price = historicalPrices[key] || t.price; // Use API price or fallback to stored price
+        totalCost += t.shares * price;
         totalShares += t.shares;
       }
     });
@@ -158,17 +219,9 @@ const Portfolio = () => {
     return totalShares > 0 ? totalCost / totalShares : 0;
   };
 
-  // Mock function to get current price (in real app, would fetch from API)
+  // Get current price from fetched stock prices
   const getCurrentPrice = (symbol) => {
-    // Mock prices - in production, fetch from a real API
-    const mockPrices = {
-      'AAPL': 178.25,
-      'GOOGL': 142.80,
-      'MSFT': 378.91,
-      'TSLA': 242.84,
-      'AMZN': 178.35
-    };
-    return mockPrices[symbol] || 0;
+    return stockPrices[symbol] || 0;
   };
 
   // Calculate enriched holdings with dynamic values
@@ -176,12 +229,17 @@ const Portfolio = () => {
     const avgPrice = calculateAvgPrice(holding.symbol);
     const currentPrice = getCurrentPrice(holding.symbol);
     const value = holding.shares * currentPrice;
+    const cost = holding.shares * avgPrice;
+    const gain = value - cost;
+    const gainPercent = cost > 0 ? ((gain / cost) * 100).toFixed(2) : '0.00';
     
     return {
       ...holding,
       avgPrice,
       currentPrice,
-      value
+      value,
+      gain,
+      gainPercent
     };
   });
 
@@ -357,9 +415,6 @@ const Portfolio = () => {
                       Shares
                     </th>
                     <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
-                      Avg Price
-                    </th>
-                    <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
                       Current Price
                     </th>
                     <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
@@ -374,52 +429,47 @@ const Portfolio = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {enrichedHoldings.map((holding, index) => {
-                    const gainLoss = holding.value - (holding.shares * holding.avgPrice);
-                    const gainLossPercent = holding.avgPrice > 0 ? ((gainLoss / (holding.shares * holding.avgPrice)) * 100).toFixed(2) : '0.00';
-                    
-                    return (
-                      <tr key={index}>
-                        <td className="border-b border-[#eee] py-5 px-4 pl-9 dark:border-strokedark xl:pl-11">
-                          <h5 className="font-bold text-black dark:text-white">
-                            {holding.symbol}
-                          </h5>
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          <p className="text-black dark:text-white">
-                            {holding.name}
-                          </p>
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          <p className="text-black dark:text-white">
-                            {holding.shares}
-                          </p>
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          <p className="text-black dark:text-white">
-                            ${holding.avgPrice.toFixed(2)}
-                          </p>
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          <p className="text-black dark:text-white">
-                            ${holding.currentPrice.toFixed(2)}
-                          </p>
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          <p className="text-black dark:text-white font-semibold">
-                            ${holding.value.toFixed(2)}
-                          </p>
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                  {enrichedHoldings.map((holding, index) => (
+                    <tr key={index}>
+                      <td className="border-b border-[#eee] py-5 px-4 pl-9 dark:border-strokedark xl:pl-11">
+                        <h5 className="font-bold text-black dark:text-white">
+                          {holding.symbol}
+                        </h5>
+                      </td>
+                      <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        <p className="text-black dark:text-white">
+                          {holding.name}
+                        </p>
+                      </td>
+                      <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        <p className="text-black dark:text-white">
+                          {holding.shares}
+                        </p>
+                      </td>
+                      <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        <p className="text-black dark:text-white">
+                          {holding.currentPrice > 0 ? `$${holding.currentPrice.toFixed(2)}` : 'Loading...'}
+                        </p>
+                      </td>
+                      <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        <p className="text-black dark:text-white font-semibold">
+                          {holding.value > 0 ? `$${holding.value.toFixed(2)}` : 'Loading...'}
+                        </p>
+                      </td>
+                      <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        {holding.currentPrice > 0 ? (
                           <p className={`inline-flex rounded-full bg-opacity-10 py-1 px-3 text-sm font-medium ${
-                            gainLoss >= 0
+                            holding.gain >= 0
                               ? 'bg-success text-success'
                               : 'bg-danger text-danger'
                           }`}>
-                            {gainLoss >= 0 ? '+' : ''}{gainLossPercent}%
+                            {holding.gain >= 0 ? '+' : ''}${holding.gain.toFixed(2)} ({holding.gainPercent}%)
                           </p>
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        ) : (
+                          <p className="text-black dark:text-white text-sm">Loading...</p>
+                        )}
+                      </td>
+                      <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           <div className="flex items-center space-x-3.5">
                             <button className="hover:text-primary">
                               <svg
@@ -454,8 +504,8 @@ const Portfolio = () => {
                           </div>
                         </td>
                       </tr>
-                    );
-                  })}
+                    )
+                  )}
                 </tbody>
               </table>
             </div>
