@@ -8,9 +8,10 @@ const FASTAPI_BASE_URL = import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8
  * @param {string} query - User's query
  * @param {object} portfolio - Portfolio data (optional, used for agent_b)
  * @param {string} userId - User's Firebase UID
+ * @param {number} availableCash - User's available cash budget
  * @returns {Promise<object>} - AI advice response with portfolio recommendations
  */
-export const getPortfolioAdvice = async (query, portfolio, userId) => {
+export const getPortfolioAdvice = async (query, portfolio, userId, availableCash = 0) => {
   try {
     // Check if user has any portfolios
     const { isEmpty } = await CheckIfPortfolioCollectionEmpty(userId);
@@ -27,7 +28,8 @@ export const getPortfolioAdvice = async (query, portfolio, userId) => {
       },
       body: JSON.stringify({
         query,
-        portfolio: isEmpty ? null : portfolio
+        portfolio: isEmpty ? null : portfolio,
+        availableCash
       })
     });
     

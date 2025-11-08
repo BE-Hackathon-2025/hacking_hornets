@@ -66,7 +66,7 @@ const AI = () => {
           setCurrentConversation(result.data[0]);
           setMessages(result.data[0].messages.map((msg, idx) => ({
             ...msg,
-            id: idx + 1,
+            id: `msg-${msg.timestamp?.seconds || Date.now()}-${idx}-${Math.random()}`,
             text: msg.content,
             sender: msg.role === 'user' ? 'user' : 'ai',
             timestamp: msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -304,7 +304,7 @@ const AI = () => {
       if (result.success) {
         // Create default welcome message
         const welcomeMessage = {
-          id: 1,
+          id: `welcome-${Date.now()}-${Math.random()}`,
           text: "Hello! I'm your InnoVest AI assistant. I analyze your investment needs and provide personalized portfolio recommendations. Whether you're starting fresh or optimizing existing holdings, I'll help you make informed investment decisions. Ask me anything about investing!",
           sender: 'ai',
           role: 'assistant',
@@ -368,7 +368,7 @@ const AI = () => {
 
       // Add user message to UI
       const userMessage = {
-        id: messages.length + 1,
+        id: `user-${Date.now()}-${Math.random()}`,
         text: userInput,
         sender: 'user',
         role: 'user',
@@ -379,7 +379,7 @@ const AI = () => {
 
       // Add loading message bubble
       const loadingMessage = {
-        id: messages.length + 2,
+        id: `loading-${Date.now()}-${Math.random()}`,
         text: 'thinking...',
         sender: 'ai',
         role: 'assistant',
@@ -405,7 +405,30 @@ const AI = () => {
         
         if (isPortfolioRelated) {
           // Portfolio-related query: use agent_a or agent_b
-          const result = await getPortfolioAdvice(userInput, null, currentUser.uid);
+          // Fetch user's current portfolio to send to agent_b
+          let currentPortfolio = null;
+          const portfoliosResult = await getUserPortfolios(currentUser.uid);
+          
+          if (portfoliosResult.success && portfoliosResult.data.length > 0) {
+            // Get the first portfolio's holdings
+            const portfolio = portfoliosResult.data[0];
+            currentPortfolio = portfolio.holdings || [];
+            console.log('📊 Sending portfolio to AI:', currentPortfolio);
+          } else {
+            console.log('📭 No portfolio found, will use agent_a');
+          }
+          
+          // Get user's available cash to ensure AI stays within budget
+          const cashResult = await getUserCash(currentUser.uid);
+          const availableCash = (cashResult.success && cashResult.cashAvailable !== undefined) 
+            ? cashResult.cashAvailable 
+            : 0;
+          console.log(`💰 User has $${availableCash.toFixed(2)} available cash`);
+          
+          // Add budget constraint to the query
+          const budgetQuery = `${userInput}\n\nIMPORTANT: The user has $${availableCash.toFixed(2)} available cash. Do not recommend purchases exceeding this amount.`;
+          
+          const result = await getPortfolioAdvice(budgetQuery, currentPortfolio, currentUser.uid, availableCash);
           
           if (result.success) {
             aiResponseText = result.data || "I analyzed your request, but couldn't format the response properly.";
@@ -414,15 +437,36 @@ const AI = () => {
             const portfolioAssets = parseAgentOutput(aiResponseText);
             
             if (portfolioAssets && portfolioAssets.length > 0) {
-              // Automatically apply the portfolio updates
+              // Calculate total cost for display
+              const totalCost = portfolioAssets.reduce((sum, asset) => 
+                sum + (asset.shares * asset.avgPrice), 0
+              );
+              
+              console.log(`🔍 AI recommended portfolio cost: $${totalCost.toFixed(2)}`);
+              console.log(`💰 Available cash: $${availableCash.toFixed(2)}`);
+              
+              // Automatically apply the portfolio updates regardless of cost
               await handlePortfolioUpdate(portfolioAssets);
               
               // Build detailed message showing what changed
               let detailsMessage = '✅ Portfolio updated!\n\n';
               detailsMessage += 'Added/Updated stocks:\n';
+              let totalSpent = 0;
               portfolioAssets.forEach(asset => {
-                detailsMessage += `• ${asset.name} (${asset.symbol}): ${asset.shares} shares @ $${asset.avgPrice.toFixed(2)}\n`;
+                const cost = asset.shares * asset.avgPrice;
+                totalSpent += cost;
+                detailsMessage += `• ${asset.name} (${asset.symbol}): ${asset.shares} shares @ $${asset.avgPrice.toFixed(2)} = $${cost.toFixed(2)}\n`;
               });
+              detailsMessage += `\nTotal invested: $${totalSpent.toFixed(2)}`;
+              
+              // Show warning if exceeded budget
+              if (totalCost > availableCash) {
+                const shortfall = totalCost - availableCash;
+                detailsMessage += `\n⚠️ Note: This exceeds your available cash by $${shortfall.toFixed(2)}`;
+                detailsMessage += `\nNew balance: -$${(totalSpent - availableCash).toFixed(2)}`;
+              } else {
+                detailsMessage += `\nRemaining cash: $${(availableCash - totalSpent).toFixed(2)}`;
+              }
               
               aiResponseText = detailsMessage;
             } else {
@@ -447,7 +491,7 @@ const AI = () => {
         setMessages(prev => prev.filter(msg => !msg.isLoading));
 
         const aiMessage = {
-          id: messages.length + 2,
+          id: `ai-${Date.now()}-${Math.random()}`,
           text: aiResponseText,
           sender: 'ai',
           role: 'assistant',
@@ -470,7 +514,7 @@ const AI = () => {
         setMessages(prev => prev.filter(msg => !msg.isLoading));
         
         const errorMessage = {
-          id: messages.length + 2,
+          id: `error-${Date.now()}-${Math.random()}`,
           text: "I'm sorry, I couldn't connect to the AI service. Please make sure the backend is running on http://localhost:8000",
           sender: 'ai',
           role: 'assistant',
@@ -507,7 +551,7 @@ const AI = () => {
     setCurrentConversation(conversation);
     const formattedMessages = conversation.messages.map((msg, idx) => ({
       ...msg,
-      id: idx + 1,
+      id: `conv-${conversation.id}-${msg.timestamp?.seconds || Date.now()}-${idx}-${Math.random()}`,
       text: msg.content,
       sender: msg.role === 'user' ? 'user' : 'ai',
       timestamp: msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
