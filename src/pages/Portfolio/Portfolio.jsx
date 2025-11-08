@@ -61,13 +61,14 @@ const Portfolio = () => {
   // Fetch stock prices when portfolio changes
   useEffect(() => {
     if (currentPortfolio && currentPortfolio.holdings) {
-      fetchStockPrices();
+      // Always use cache first on initial load (never force API fetch)
+      fetchStockPrices(false);
       
-      // Set up background refresh after 1 minute
+      // Set up background refresh after 2 minutes (only if cache was stale)
       const refreshTimer = setTimeout(() => {
-        console.log('Background refresh: Updating stock prices after 1 minute');
-        fetchStockPrices(true); // Force refresh
-      }, 60000); // 60 seconds
+        console.log('Background refresh: Updating stock prices after 2 minutes');
+        fetchStockPrices(true); // Force refresh in background
+      }, 120000); // 120 seconds (2 minutes)
       
       return () => clearTimeout(refreshTimer);
     }
@@ -638,6 +639,9 @@ const Portfolio = () => {
                       Shares
                     </th>
                     <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
+                      Cost Basis
+                    </th>
+                    <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
                       Current Price
                     </th>
                     <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
@@ -667,6 +671,11 @@ const Portfolio = () => {
                       <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                         <p className="text-black dark:text-white">
                           {holding.shares}
+                        </p>
+                      </td>
+                      <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        <p className="text-black dark:text-white">
+                          {holding.avgPrice > 0 ? `$${holding.avgPrice.toFixed(2)}` : 'N/A'}
                         </p>
                       </td>
                       <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
