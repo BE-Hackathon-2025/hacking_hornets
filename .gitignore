@@ -80,3 +80,10 @@ yarn-error.log*
 .turbo
 *.tsbuildinfo
 .vite
+
+# Documentation and summary files
+*SUMMARY.md
+*_SUMMARY.md
+FIRESTORE*.md
+*IMPLEMENTATION.md
+*RESTRUCTURE*.md
