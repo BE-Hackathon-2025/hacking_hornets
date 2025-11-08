@@ -1,12 +1,45 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { getUserDocument } from '../../services/firestoreService';
+import toast from 'react-hot-toast';
 import ClickOutside from '../ClickOutside';
-import UserOne from '../../images/user/user-02.png';
 
 const DropdownUser = () => {
-
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const { currentUser, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [userData, setUserData] = useState(null);
+
+  useEffect(() => {
+    if (currentUser) {
+      loadUserData();
+    }
+  }, [currentUser]);
+
+  const loadUserData = async () => {
+    try {
+      const result = await getUserDocument(currentUser.uid);
+      if (result.success) {
+        setUserData(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success('Successfully logged out!');
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Failed to log out');
+    }
+  };
+
+  const displayName = userData?.displayName || currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Guest User';
 
   return (
     <ClickOutside onClick={() => setDropdownOpen(false)} className="relative">
@@ -15,19 +48,14 @@ const DropdownUser = () => {
         className="flex items-center gap-4"
         to="#"
       >
-        <span className="hidden text-right lg:block">
+        <span className="text-right">
           <span className="block text-sm font-medium text-black dark:text-white">
-            Jane Doe
+            {displayName}
           </span>
-          <span className="block text-xs">Web Developer</span>
-        </span>
-
-        <span className="h-12 w-12 rounded-full">
-          <img src={UserOne} alt="User" />
         </span>
 
         <svg
-          className="hidden fill-current sm:block"
+          className="fill-current"
           width="12"
           height="8"
           viewBox="0 0 12 8"
@@ -75,7 +103,10 @@ const DropdownUser = () => {
               </Link>
             </li>
           </ul>
-          <button onClick={() => navigate('/login')} className="flex items-center gap-3.5 px-6 py-4 text-sm font-medium duration-300 ease-in-out hover:text-primary lg:text-base">
+          <button 
+            onClick={handleLogout} 
+            className="flex items-center gap-3.5 px-6 py-4 text-sm font-medium duration-300 ease-in-out hover:text-primary lg:text-base"
+          >
             <svg
               className="fill-current"
               width="22"

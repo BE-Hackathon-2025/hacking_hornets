@@ -1,25 +1,105 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { 
+  getUserPortfolios, 
+  createPortfolio, 
+  updatePortfolio,
+  addHolding,
+  addTransaction 
+} from '../../services/firestoreService';
+import toast from 'react-hot-toast';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import CardDataStats from '../../components/CardDataStats';
 
 const Portfolio = () => {
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('holdings');
+  const [portfolios, setPortfolios] = useState([]);
+  const [currentPortfolio, setCurrentPortfolio] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock holdings data
-  const holdings = [
-    { symbol: 'AAPL', name: 'Apple Inc.', shares: 50, avgPrice: 150.50, currentPrice: 178.25, value: 8912.50 },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', shares: 25, avgPrice: 120.00, currentPrice: 142.80, value: 3570.00 },
-    { symbol: 'MSFT', name: 'Microsoft Corp.', shares: 40, avgPrice: 310.00, currentPrice: 378.91, value: 15156.40 },
-    { symbol: 'TSLA', name: 'Tesla Inc.', shares: 15, avgPrice: 220.00, currentPrice: 242.84, value: 3642.60 },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', shares: 30, avgPrice: 135.00, currentPrice: 178.35, value: 5350.50 },
-  ];
+  // Fetch portfolios on component mount
+  useEffect(() => {
+    if (currentUser) {
+      fetchPortfolios();
+    }
+  }, [currentUser]);
 
-  const transactions = [
-    { date: '2025-11-05', type: 'BUY', symbol: 'AAPL', shares: 10, price: 178.25, total: 1782.50 },
-    { date: '2025-11-03', type: 'SELL', symbol: 'TSLA', shares: 5, price: 242.84, total: 1214.20 },
-    { date: '2025-10-28', type: 'BUY', symbol: 'MSFT', shares: 15, price: 378.91, total: 5683.65 },
-    { date: '2025-10-25', type: 'BUY', symbol: 'GOOGL', shares: 10, price: 142.80, total: 1428.00 },
-  ];
+  const fetchPortfolios = async () => {
+    try {
+      setLoading(true);
+      const result = await getUserPortfolios(currentUser.uid);
+      if (result.success && result.data.length > 0) {
+        setPortfolios(result.data);
+        setCurrentPortfolio(result.data[0]); // Set first portfolio as current
+      } else {
+        // Create initial portfolio if none exists
+        await initializePortfolio();
+      }
+    } catch (error) {
+      console.error('Error fetching portfolios:', error);
+      toast.error('Failed to load portfolios');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const initializePortfolio = async () => {
+    try {
+      const initialData = {
+        name: 'Main Portfolio',
+        holdings: [
+          { symbol: 'AAPL', name: 'Apple Inc.', shares: 50, avgPrice: 150.50, currentPrice: 178.25, value: 8912.50 },
+          { symbol: 'GOOGL', name: 'Alphabet Inc.', shares: 25, avgPrice: 120.00, currentPrice: 142.80, value: 3570.00 },
+          { symbol: 'MSFT', name: 'Microsoft Corp.', shares: 40, avgPrice: 310.00, currentPrice: 378.91, value: 15156.40 },
+          { symbol: 'TSLA', name: 'Tesla Inc.', shares: 15, avgPrice: 220.00, currentPrice: 242.84, value: 3642.60 },
+          { symbol: 'AMZN', name: 'Amazon.com Inc.', shares: 30, avgPrice: 135.00, currentPrice: 178.35, value: 5350.50 },
+        ],
+        transactions: [
+          { date: '2025-11-05', type: 'BUY', symbol: 'AAPL', shares: 10, price: 178.25, total: 1782.50 },
+          { date: '2025-11-03', type: 'SELL', symbol: 'TSLA', shares: 5, price: 242.84, total: 1214.20 },
+          { date: '2025-10-28', type: 'BUY', symbol: 'MSFT', shares: 15, price: 378.91, total: 5683.65 },
+          { date: '2025-10-25', type: 'BUY', symbol: 'GOOGL', shares: 10, price: 142.80, total: 1428.00 },
+        ]
+      };
+      
+      const result = await createPortfolio(currentUser.uid, initialData);
+      if (result.success) {
+        fetchPortfolios();
+        toast.success('Portfolio initialized successfully');
+      }
+    } catch (error) {
+      console.error('Error initializing portfolio:', error);
+      toast.error('Failed to initialize portfolio');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!currentPortfolio) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-xl mb-4">No portfolio found</p>
+          <button 
+            onClick={initializePortfolio}
+            className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-opacity-90"
+          >
+            Create Portfolio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const holdings = currentPortfolio.holdings || [];
+  const transactions = currentPortfolio.transactions || [];
 
   const totalValue = holdings.reduce((sum, holding) => sum + holding.value, 0);
   const totalCost = holdings.reduce((sum, holding) => sum + (holding.shares * holding.avgPrice), 0);

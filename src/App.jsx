@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 
 import Loader from './common/Loader';
 import PageTitle from './components/PageTitle';
@@ -36,8 +37,9 @@ function App() {
   return loading ? (
     <Loader />
   ) : (
-    <DefaultLayout>
-      <Routes>
+    <AuthProvider>
+      <DefaultLayout>
+        <Routes>
         <Route
           path="/dashboard"
           element={
@@ -184,6 +186,7 @@ function App() {
         />
       </Routes>
     </DefaultLayout>
+    </AuthProvider>
   );
 }
 
