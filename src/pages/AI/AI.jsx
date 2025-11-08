@@ -4,9 +4,13 @@ import {
   getUserConversations,
   createConversation,
   addMessage,
-  deleteConversation
+  deleteConversation,
+  createPortfolio,
+  getUserPortfolios,
+  updatePortfolio,
+  buyShares
 } from '../../services/firestoreService';
-import { callStockFinder } from '../../services/fastApiService';
+import { getPortfolioAdvice } from '../../services/fastApiService';
 import toast from 'react-hot-toast';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import StocksSidebar from '../../components/Stocks/StocksSidebar';
@@ -66,6 +70,158 @@ const AI = () => {
     }
   };
 
+  // Helper function to parse agent output and extract portfolio data
+  const parseAgentOutput = (responseText) => {
+    try {
+      console.log('🔍 Parsing agent output:', responseText);
+      
+      // Look for AgentRunResult pattern
+      const agentResultMatch = responseText.match(/AgentRunResult\(output=PortfolioModel\(portfolio=\[(.*?)\]\)\)/s);
+      
+      if (agentResultMatch) {
+        console.log('✅ Found AgentRunResult pattern');
+        const portfolioContent = agentResultMatch[1];
+        console.log('📦 Portfolio content:', portfolioContent);
+        const assets = [];
+        
+        // Extract individual AssetModel entries
+        const assetPattern = /AssetModel\(name='([^']+)',\s*symbol='([^']+)',\s*shares=(\d+),\s*avgPrice=([\d.]+)\)/g;
+        let match;
+        
+        while ((match = assetPattern.exec(portfolioContent)) !== null) {
+          const asset = {
+            name: match[1],
+            symbol: match[2],
+            shares: parseInt(match[3]),
+            avgPrice: parseFloat(match[4])
+          };
+          console.log('📈 Extracted asset:', asset);
+          assets.push(asset);
+        }
+        
+        console.log(`✅ Total assets extracted: ${assets.length}`, assets);
+        return assets.length > 0 ? assets : null;
+      } else {
+        console.log('❌ No AgentRunResult pattern found in response');
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error parsing agent output:', error);
+      return null;
+    }
+  };
+
+  // Helper function to clean AI response text
+  const cleanAIResponse = (responseText) => {
+    // Remove AgentRunResult pattern
+    let cleaned = responseText.replace(/AgentRunResult\(output=PortfolioModel\(portfolio=\[.*?\]\)\)/s, '').trim();
+    
+    // Replace escaped newlines with actual newlines
+    cleaned = cleaned.replace(/\\n/g, '\n');
+    
+    // Remove the "Based on your query:" line
+    cleaned = cleaned.replace(/Based on your query:.*?\n/i, '').trim();
+    
+    // Remove the analysis/recommendation text
+    cleaned = cleaned.replace(/After analyzing your current holdings and market conditions, I recommend the following portfolio adjustments:/gi, '').trim();
+    cleaned = cleaned.replace(/I recommend starting with a diversified portfolio focusing on.*?:/gi, '').trim();
+    cleaned = cleaned.replace(/These additions will enhance your portfolio.*?\./gi, '').trim();
+    cleaned = cleaned.replace(/These stocks provide.*?\./gi, '').trim();
+    
+    // Remove extra spaces and clean up
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
+    
+    // Remove any remaining escaped quotes
+    cleaned = cleaned.replace(/\\"/g, '"');
+    
+    return cleaned;
+  };
+
+  // Function to create/update portfolio from AI recommendations
+  const handlePortfolioUpdate = async (assets) => {
+    try {
+      console.log('💼 Starting portfolio update with assets:', assets);
+      
+      if (!assets || assets.length === 0) {
+        console.log('❌ No assets to update');
+        return;
+      }
+
+      // Get user's portfolios
+      const portfoliosResult = await getUserPortfolios(currentUser.uid);
+      console.log('📂 User portfolios:', portfoliosResult);
+      
+      let portfolioId;
+      
+      if (!portfoliosResult.success || portfoliosResult.data.length === 0) {
+        // Create new portfolio
+        console.log('📝 Creating new portfolio...');
+        const newPortfolioResult = await createPortfolio(currentUser.uid, {
+          name: 'AI Recommended Portfolio',
+          description: 'Portfolio created from AI recommendations',
+          holdings: []
+        });
+        
+        if (newPortfolioResult.success) {
+          portfolioId = newPortfolioResult.portfolioId;
+          console.log('✅ Portfolio created with ID:', portfolioId);
+          toast.success('Created new portfolio!');
+        } else {
+          throw new Error('Failed to create portfolio');
+        }
+      } else {
+        // Use the first portfolio
+        portfolioId = portfoliosResult.data[0].id;
+        console.log('📁 Using existing portfolio ID:', portfolioId);
+      }
+
+      // Add each asset to the portfolio using updatePortfolio to directly modify holdings
+      console.log(`📊 Adding ${assets.length} assets to portfolio...`);
+      const portfoliosRef = await getUserPortfolios(currentUser.uid);
+      const currentPortfolio = portfoliosRef.data.find(p => p.id === portfolioId);
+      const currentHoldings = currentPortfolio?.holdings || [];
+      
+      // Add or update holdings
+      for (const asset of assets) {
+        console.log('➕ Processing asset:', asset);
+        const existingIndex = currentHoldings.findIndex(h => h.symbol === asset.symbol);
+        
+        if (existingIndex >= 0) {
+          // Update existing holding
+          currentHoldings[existingIndex] = {
+            symbol: asset.symbol,
+            name: asset.name,
+            shares: asset.shares,
+            avgPrice: asset.avgPrice
+          };
+          console.log('✏️ Updated existing holding:', asset.symbol);
+        } else {
+          // Add new holding
+          currentHoldings.push({
+            symbol: asset.symbol,
+            name: asset.name,
+            shares: asset.shares,
+            avgPrice: asset.avgPrice
+          });
+          console.log('➕ Added new holding:', asset.symbol);
+        }
+      }
+
+      // Update portfolio with new holdings
+      await updatePortfolio(currentUser.uid, portfolioId, {
+        holdings: currentHoldings
+      });
+
+      console.log('🎉 All assets added successfully!');
+      toast.success(`Successfully added ${assets.length} stock(s) to your portfolio!`);
+      
+    } catch (error) {
+      console.error('❌ Error updating portfolio:', error);
+      toast.error('Failed to update portfolio from AI recommendations');
+    }
+  };
+
   const startNewConversation = async () => {
     try {
       setLoading(true);
@@ -76,7 +232,7 @@ const AI = () => {
         // Create default welcome message
         const welcomeMessage = {
           id: 1,
-          text: "Hello! I'm your Money Talks AI assistant. I can help you with investment strategies, portfolio analysis, market insights, and answer questions about your holdings. How can I assist you today?",
+          text: "Hello! I'm your InnoVest AI assistant. I analyze your investment needs and provide personalized portfolio recommendations. Whether you're starting fresh or optimizing existing holdings, I'll help you make informed investment decisions. Ask me anything about investing!",
           sender: 'ai',
           role: 'assistant',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -148,6 +304,17 @@ const AI = () => {
 
       setMessages(prev => [...prev, userMessage]);
 
+      // Add loading message bubble
+      const loadingMessage = {
+        id: messages.length + 2,
+        text: 'thinking...',
+        sender: 'ai',
+        role: 'assistant',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isLoading: true
+      };
+      setMessages(prev => [...prev, loadingMessage]);
+
       // Save user message to Firestore
       console.log('Saving user message to conversation:', conversationId);
       await addMessage(currentUser.uid, conversationId, {
@@ -156,73 +323,72 @@ const AI = () => {
       });
       console.log('User message saved successfully');
 
-      // Check if the query is stock-related
-      const isStockQuery = /stock|recommend|portfolio|invest|buy|trade|market|ticker|symbol/i.test(userInput);
-
-      if (isStockQuery) {
-        // Call the FastAPI stock_finder endpoint
-        try {
-          const result = await callStockFinder(userInput);
+      // All queries go through portfolio advice (agent_a or agent_b)
+      try {
+        const result = await getPortfolioAdvice(userInput, null, currentUser.uid);
+        
+        let aiResponseText;
+        if (result.success) {
+          aiResponseText = result.data || "I analyzed your request, but couldn't format the response properly.";
           
-          let aiResponseText;
-          if (result.success) {
-            aiResponseText = result.data || "I found some stocks for you, but couldn't format the response properly.";
+          // Parse agent output for portfolio recommendations
+          const portfolioAssets = parseAgentOutput(aiResponseText);
+          
+          if (portfolioAssets && portfolioAssets.length > 0) {
+            // Automatically apply the portfolio updates
+            await handlePortfolioUpdate(portfolioAssets);
+            
+            // Build detailed message showing what changed
+            let detailsMessage = '✅ Portfolio updated!\n\n';
+            detailsMessage += 'Added/Updated stocks:\n';
+            portfolioAssets.forEach(asset => {
+              detailsMessage += `• ${asset.name} (${asset.symbol}): ${asset.shares} shares @ $${asset.avgPrice.toFixed(2)}\n`;
+            });
+            
+            aiResponseText = detailsMessage;
           } else {
-            aiResponseText = "I'm sorry, I encountered an error while searching for stocks. Please make sure the backend server is running and try again.";
+            // Clean the response text only if no portfolio update (for general queries)
+            aiResponseText = cleanAIResponse(aiResponseText);
           }
-
-          const aiMessage = {
-            id: messages.length + 2,
-            text: aiResponseText,
-            sender: 'ai',
-            role: 'assistant',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          };
-          
-          setMessages(prev => [...prev, aiMessage]);
-          
-          // Save AI message to Firestore
-          await addMessage(currentUser.uid, conversationId, {
-            role: 'assistant',
-            content: aiMessage.text
-          });
-          
-          setLoading(false);
-        } catch (error) {
-          console.error('Error calling stock finder:', error);
-          const errorMessage = {
-            id: messages.length + 2,
-            text: "I'm sorry, I couldn't connect to the stock recommendation service. Please make sure the backend is running on http://localhost:8000",
-            sender: 'ai',
-            role: 'assistant',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          };
-          setMessages(prev => [...prev, errorMessage]);
-          setLoading(false);
+        } else {
+          aiResponseText = "I'm sorry, I encountered an error while processing your request. Please make sure the backend server is running and try again.";
         }
-      } else {
-        // For non-stock queries, use the default AI response
-        setTimeout(async () => {
-          const aiMessage = {
-            id: messages.length + 2,
-            text: "Thank you for your message! I'm specialized in stock recommendations. Try asking me about stocks, investments, or market recommendations!",
-            sender: 'ai',
-            role: 'assistant',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          };
-          
-          setMessages(prev => [...prev, aiMessage]);
-          
-          // Save AI message to Firestore
-          console.log('Saving AI response to conversation:', conversationId);
-          await addMessage(currentUser.uid, conversationId, {
-            role: 'assistant',
-            content: aiMessage.text
-          });
-          console.log('AI response saved successfully');
-          
-          setLoading(false);
-        }, 1000);
+
+        // Remove loading message and add actual response
+        setMessages(prev => prev.filter(msg => !msg.isLoading));
+
+        const aiMessage = {
+          id: messages.length + 2,
+          text: aiResponseText,
+          sender: 'ai',
+          role: 'assistant',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Save AI message to Firestore
+        await addMessage(currentUser.uid, conversationId, {
+          role: 'assistant',
+          content: aiMessage.text
+        });
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error getting portfolio advice:', error);
+        
+        // Remove loading message
+        setMessages(prev => prev.filter(msg => !msg.isLoading));
+        
+        const errorMessage = {
+          id: messages.length + 2,
+          text: "I'm sorry, I couldn't connect to the AI service. Please make sure the backend is running on http://localhost:8000",
+          sender: 'ai',
+          role: 'assistant',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        setLoading(false);
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -302,16 +468,29 @@ const AI = () => {
                               : 'bg-white dark:bg-boxdark border border-stroke dark:border-strokedark'
                           }`}
                         >
-                          <p className={`text-sm ${message.sender === 'user' ? 'text-white' : 'text-black dark:text-white'}`}>
-                            {message.text}
-                          </p>
-                          <span
-                            className={`mt-1 block text-xs ${
-                              message.sender === 'user' ? 'text-white opacity-80' : 'text-bodydark'
-                            }`}
-                          >
-                            {message.timestamp}
-                          </span>
+                          {message.isLoading ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex gap-1">
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                              </div>
+                              <span className="text-sm text-gray-500 dark:text-gray-400">Thinking...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <p className={`text-sm whitespace-pre-wrap ${message.sender === 'user' ? 'text-white' : 'text-black dark:text-white'}`}>
+                                {message.text}
+                              </p>
+                              <span
+                                className={`mt-1 block text-xs ${
+                                  message.sender === 'user' ? 'text-white opacity-80' : 'text-bodydark'
+                                }`}
+                              >
+                                {message.timestamp}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}

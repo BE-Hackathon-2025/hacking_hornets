@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getUserPortfolios } from '../../services/firestoreService';
 import ChartOne from '../../components/Charts/ChartOne';
 import ChartThree from '../../components/Charts/ChartThree';
-import ChartTwo from '../../components/Charts/ChartTwo';
+import AppleNews from '../../components/News/AppleNews';
 import ChartFour from '../../components/Charts/ChartFour';
 import TableOne from '../../components/Tables/TableOne';
 import AuthPrompt from '../../components/AuthPrompt';
@@ -51,7 +51,7 @@ const Dashboard = () => {
     <>
       <div className="grid grid-cols-12 gap-4 md:gap-6 2xl:gap-7.5">
         <ChartOne portfolio={portfolio} />
-        <ChartTwo />
+        <AppleNews />
         <ChartThree portfolio={portfolio} />
         <ChartFour />
       </div>

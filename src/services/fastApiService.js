@@ -1,75 +1,45 @@
 // FastAPI backend service
+import { CheckIfPortfolioCollectionEmpty } from './firestoreService';
+
 const FASTAPI_BASE_URL = import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8000';
 
 /**
- * Call the stock finder endpoint
- * @param {string} query - The user's query about stocks
- * @returns {Promise<object>} - Stock recommendations
+ * Get portfolio advice - routes to agent_a or agent_b based on portfolio collection status
+ * @param {string} query - User's query
+ * @param {object} portfolio - Portfolio data (optional, used for agent_b)
+ * @param {string} userId - User's Firebase UID
+ * @returns {Promise<object>} - AI advice response with portfolio recommendations
  */
-export const callStockFinder = async (query) => {
+export const getPortfolioAdvice = async (query, portfolio, userId) => {
   try {
-    const response = await fetch(
-      `${FASTAPI_BASE_URL}/stock_finder?query=${encodeURIComponent(query)}`
-    );
+    // Check if user has any portfolios
+    const { isEmpty } = await CheckIfPortfolioCollectionEmpty(userId);
+    
+    // Route based on portfolio collection status
+    // agent_a: For users with no portfolios (new users)
+    // agent_b: For users with existing portfolios (portfolio analysis)
+    const endpoint = isEmpty ? '/agent_a' : '/agent_b';
+    
+    const response = await fetch(`${FASTAPI_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        portfolio: isEmpty ? null : portfolio
+      })
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    // The API returns plain text, not JSON
     const data = await response.text();
-    // Remove quotes if the response is wrapped in quotes
     const cleanData = data.replace(/^"|"$/g, '');
-    return { success: true, data: cleanData };
+    return { success: true, data: cleanData, endpoint };
   } catch (error) {
-    console.error('Error calling stock finder:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-/**
- * Update portfolio with AI recommendations
- * @param {string} ticker - Stock ticker symbol
- * @param {number} amount - Number of shares
- * @returns {Promise<object>} - Update result
- */
-export const updatePortfolio = async (ticker, amount) => {
-  try {
-    const response = await fetch(
-      `${FASTAPI_BASE_URL}/update_portfolio?ticker=${encodeURIComponent(ticker)}&amount=${amount}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error updating portfolio:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-/**
- * Generate portfolio update recommendations
- * @param {string} updateType - Type of update (e.g., "rebalance", "optimize")
- * @returns {Promise<object>} - Update recommendations
- */
-export const genUpdatePortfolio = async (updateType) => {
-  try {
-    const response = await fetch(
-      `${FASTAPI_BASE_URL}/gen_update_portfolio?update_type=${encodeURIComponent(updateType)}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error generating portfolio update:', error);
+    console.error('Error getting portfolio advice:', error);
     return { success: false, error: error.message };
   }
 };

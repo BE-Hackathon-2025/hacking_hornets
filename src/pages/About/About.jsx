@@ -4,12 +4,12 @@ import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 const About = () => {
   return (
     <>
-      <Breadcrumb pageName="About Money Talks" />
+      <Breadcrumb pageName="About InnoVest" />
 
       <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
         <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark">
           <h3 className="font-medium text-black dark:text-white">
-            About Money Talks
+            About InnoVest
           </h3>
         </div>
         <div className="p-6.5">
@@ -18,7 +18,7 @@ const About = () => {
               AI-Powered Investment Portfolio Management
             </h4>
             <p className="text-bodydark dark:text-bodydark1 leading-relaxed">
-              Money Talks is an intelligent investment portfolio management platform that combines real-time market data with AI-powered insights to help you make informed investment decisions.
+              InnoVest is an intelligent investment portfolio management platform that combines real-time market data with AI-powered insights to help you make informed investment decisions.
             </p>
           </div>
 

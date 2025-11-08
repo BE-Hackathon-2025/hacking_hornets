@@ -46,7 +46,7 @@ function App() {
           path="/login"
           element={
             <>
-              <PageTitle title="Signin | Money Talks - AI-Powered Investment Portfolio" />
+              <PageTitle title="Signin | InnoVest - AI-Powered Investment Portfolio" />
               <SignIn />
             </>
           }
@@ -55,7 +55,7 @@ function App() {
           path="/signup"
           element={
             <>
-              <PageTitle title="Signup | Money Talks - AI-Powered Investment Portfolio" />
+              <PageTitle title="Signup | InnoVest - AI-Powered Investment Portfolio" />
               <SignUp />
             </>
           }
@@ -65,7 +65,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Home | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Home | InnoVest - AI-Powered Investment Portfolio" />
                 <Home />
               </DefaultLayout>
             </ProtectedRoute>
@@ -76,7 +76,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Dashboard | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Dashboard | InnoVest - AI-Powered Investment Portfolio" />
                 <Dashboard />
               </DefaultLayout>
             </ProtectedRoute>
@@ -87,7 +87,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Calendar | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Calendar | InnoVest - AI-Powered Investment Portfolio" />
                 <Calendar />
               </DefaultLayout>
             </ProtectedRoute>
@@ -98,7 +98,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Profile | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Profile | InnoVest - AI-Powered Investment Portfolio" />
                 <Profile />
               </DefaultLayout>
             </ProtectedRoute>
@@ -109,7 +109,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Portfolio | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Portfolio | InnoVest - AI-Powered Investment Portfolio" />
                 <Portfolio />
               </DefaultLayout>
             </ProtectedRoute>
@@ -120,7 +120,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Watchlist | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Watchlist | InnoVest - AI-Powered Investment Portfolio" />
                 <Watchlist />
               </DefaultLayout>
             </ProtectedRoute>
@@ -131,7 +131,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="About | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="About | InnoVest - AI-Powered Investment Portfolio" />
                 <About />
               </DefaultLayout>
             </ProtectedRoute>
@@ -142,7 +142,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="AI Assistant | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="AI Assistant | InnoVest - AI-Powered Investment Portfolio" />
                 <AI />
               </DefaultLayout>
             </ProtectedRoute>
@@ -153,7 +153,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Form Elements | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Form Elements | InnoVest - AI-Powered Investment Portfolio" />
                 <FormElements />
               </DefaultLayout>
             </ProtectedRoute>
@@ -164,7 +164,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Form Layout | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Form Layout | InnoVest - AI-Powered Investment Portfolio" />
                 <FormLayout />
               </DefaultLayout>
             </ProtectedRoute>
@@ -175,7 +175,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Tables | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Tables | InnoVest - AI-Powered Investment Portfolio" />
                 <Tables />
               </DefaultLayout>
             </ProtectedRoute>
@@ -186,7 +186,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Settings | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Settings | InnoVest - AI-Powered Investment Portfolio" />
                 <Settings />
               </DefaultLayout>
             </ProtectedRoute>
@@ -197,7 +197,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Basic Chart | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Basic Chart | InnoVest - AI-Powered Investment Portfolio" />
                 <Chart />
               </DefaultLayout>
             </ProtectedRoute>
@@ -208,7 +208,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Alerts | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Alerts | InnoVest - AI-Powered Investment Portfolio" />
                 <Alerts />
               </DefaultLayout>
             </ProtectedRoute>
@@ -219,7 +219,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Buttons | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Buttons | InnoVest - AI-Powered Investment Portfolio" />
                 <Buttons />
               </DefaultLayout>
             </ProtectedRoute>
@@ -230,7 +230,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <PageTitle title="Home | Money Talks - AI-Powered Investment Portfolio" />
+                <PageTitle title="Home | InnoVest - AI-Powered Investment Portfolio" />
                 <Home />
               </DefaultLayout>
             </ProtectedRoute>

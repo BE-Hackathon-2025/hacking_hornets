@@ -254,6 +254,26 @@ export const deletePortfolio = async (userId, portfolioId) => {
 };
 
 /**
+ * Check if user has any portfolios
+ * @param {string} userId - The user's Firebase Auth UID
+ * @returns {Promise<{success: boolean, isEmpty: boolean}>}
+ */
+export const CheckIfPortfolioCollectionEmpty = async (userId) => {
+  try {
+    const portfoliosRef = collection(db, 'users', userId, 'portfolios');
+    const portfoliosSnap = await getDocs(portfoliosRef);
+    
+    return {
+      success: true,
+      isEmpty: portfoliosSnap.empty
+    };
+  } catch (error) {
+    console.error('Error checking portfolio collection:', error);
+    throw error;
+  }
+};
+
+/**
  * Add a holding to a portfolio
  * @param {string} userId - The user's Firebase Auth UID
  * @param {string} portfolioId - The portfolio document ID

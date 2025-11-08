@@ -85,7 +85,7 @@ const SignUp = () => {
           <div className="hidden w-full xl:block xl:w-1/2">
             <div className="py-17.5 px-26 text-center">
               <Link className="mb-5.5 inline-block" to="/">
-                <div className='text-2xl font-bold text-black dark:text-white'>Money Talks</div>
+                <div className='text-2xl font-bold text-black dark:text-white'>InnoVest</div>
               </Link>
               <p className="2xl:px-20">
                 AI-powered investment portfolio management with real-time stock tracking and market insights.
