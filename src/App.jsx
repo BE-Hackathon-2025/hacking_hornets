@@ -60,14 +60,13 @@ function App() {
             </>
           }
         />
-
-        {/* Protected Routes - Require Authentication */}
         <Route
-          path="/"
+          path="/home"
           element={
             <ProtectedRoute>
               <DefaultLayout>
-                <Navigate to="/dashboard" replace />
+                <PageTitle title="Home | Money Talks - AI-Powered Investment Portfolio" />
+                <Home />
               </DefaultLayout>
             </ProtectedRoute>
           }
@@ -229,10 +228,12 @@ function App() {
         <Route
           path="/"
           element={
-            <>
-              <PageTitle title="Calendar | Money Talks - AI-Powered Investment Portfolio" />
-              <Home/>
-            </>
+            <ProtectedRoute>
+              <DefaultLayout>
+                <PageTitle title="Home | Money Talks - AI-Powered Investment Portfolio" />
+                <Home />
+              </DefaultLayout>
+            </ProtectedRoute>
           }
         />
       </Routes>
